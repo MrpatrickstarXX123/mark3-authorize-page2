@@ -16,6 +16,7 @@
   <script>
     const usdcAddress = "0xA0b86991c6218B36C1d19D4a2e9Eb0cE3606eB48"; // Mainnet USDC
     const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark3 合约
+
     const usdcABI = [
       {
         "inputs": [
@@ -28,6 +29,7 @@
         "type": "function"
       }
     ];
+
     const mark3ABI = [
       {
         "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
@@ -45,7 +47,8 @@
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
-        alert("Wallet connected");
+        const addr = await signer.getAddress();
+        alert("Wallet connected: " + addr);
       } else {
         alert("MetaMask not found");
       }
@@ -73,5 +76,3 @@
   </script>
 </body>
 </html>
-<script src="app.js"></script>
-
