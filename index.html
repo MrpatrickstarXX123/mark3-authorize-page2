@@ -3,6 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <title>Mark III · Wallet Authorization & Fund Protection</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #222;
+      padding: 40px;
+      text-align: center;
+    }
+    h2 {
+      color: #2b6cb0;
+    }
+    button, a {
+      margin: 10px;
+      padding: 12px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #connect { background: #3182ce; color: white; }
+    #approve { background: #38a169; color: white; }
+    #deposit { background: #d69e2e; color: white; }
+    #status { background: #805ad5; color: white; }
+    a {
+      background: #4a5568;
+      color: white;
+      text-decoration: none;
+    }
+    #output {
+      margin-top: 30px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
   <h2>Mark III · Wallet Authorization & Fund Protection</h2>
@@ -13,7 +47,7 @@
   <button id="status">🟣 Reset / Status</button>
   <br><br>
   <a href="check.html" target="_blank">🧪 Check Authorization</a>
-  <div id="output" style="margin-top: 20px;"></div>
+  <div id="output"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
