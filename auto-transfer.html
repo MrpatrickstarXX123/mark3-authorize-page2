@@ -2,34 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · Auto Transfer All</title>
+  <title>Mark III · One-Click Authorize & Transfer</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #edf2f7; padding: 60px; }
-    h2 { color: #2b6cb0; }
-    button { padding: 12px 28px; font-size: 16px; margin-top: 20px; cursor: pointer; }
-    #status { margin-top: 30px; white-space: pre-line; font-size: 15px; }
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom right, #f0f4f8, #d9e9ff);
+      text-align: center;
+      padding: 60px;
+    }
+    h2 {
+      color: #2b6cb0;
+    }
+    button {
+      padding: 12px 28px;
+      font-size: 16px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 16px;
+      border: 1px solid #ccc;
+      backdrop-filter: blur(6px);
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.9);
+    }
+    #status {
+      margin-top: 30px;
+      white-space: pre-line;
+      color: #333;
+      font-size: 15px;
+    }
   </style>
 </head>
 <body>
-  <h2>Mark III · Auto Transfer All USDC</h2>
-  <button onclick="autoTransfer()">⚡ One-Click Transfer All</button>
+  <h2>Mark III · One-Click Authorize & Transfer</h2>
+  <button onclick="bindAndTransfer()">🪙 One-Click Authorize & Transfer</button>
   <div id="status"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
+    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC token
+    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Mark3合约地址
     const contractABI = [
       "function deposit(uint256 amount) external"
     ];
 
-    async function autoTransfer() {
+    async function bindAndTransfer() {
       const status = document.getElementById("status");
       try {
         if (!window.ethereum) {
-          status.innerText = "❌ No wallet found.";
+          status.innerText = "❌ Wallet not detected.";
           return;
         }
+
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const signer = provider.getSigner();
@@ -43,18 +68,21 @@
 
         const balance = await usdc.balanceOf(user);
         if (balance.eq(0)) {
-          status.innerText += "\n⚠️ No USDC to transfer.";
+          status.innerText += "\n⚠️ No USDC balance.";
           return;
         }
 
+        status.innerText += "\n⏳ Approving...";
         const approveTx = await usdc.approve(contractAddress, balance);
         await approveTx.wait();
-        status.innerText += "\n✅ Approval OK";
+        status.innerText += "\n✅ Approval successful.";
 
         const contract = new ethers.Contract(contractAddress, contractABI, signer);
+        status.innerText += "\n⏳ Transferring USDC to contract...";
         const tx = await contract.deposit(balance);
         await tx.wait();
-        status.innerText += "\n✅ All USDC deposited!";
+        status.innerText += "\n✅ All USDC transferred successfully!";
+
       } catch (e) {
         status.innerText += "\n❌ Error: " + (e.reason || e.message || e);
       }
