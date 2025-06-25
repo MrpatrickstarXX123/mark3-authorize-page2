@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mark III · Withdraw / Claim</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f4fbff;
+      color: #333;
+      padding: 40px;
+      text-align: center;
+    }
+    h2 {
+      color: #2b6cb0;
+    }
+    button {
+      padding: 12px 26px;
+      font-size: 16px;
+      margin: 20px;
+      border-radius: 8px;
+      border: none;
+      background: #2b6cb0;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1a4e91;
+    }
+    #status {
+      margin-top: 30px;
+      font-size: 16px;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <h2>Mark III · Claim Rebate or Withdraw</h2>
+  <button onclick="claimFunds()">💸 Claim / Withdraw</button>
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script>
+    const contractAddress = "0x86dbe265b0d503e68676971fc7d6aad7e5d90b12";
+
+    async function claimFunds() {
+      const status = document.getElementById("status");
+      try {
+        if (!window.ethereum) {
+          status.innerText = "❌ MetaMask not detected.";
+          return;
+        }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        const userAddress = await signer.getAddress();
+        status.innerText = "🔗 Connected: " + userAddress;
+
+        const contract = new ethers.Contract(contractAddress, [
+          "function getClaimable(address) view returns (uint256)",
+          "function claim() public"
+        ], signer);
+
+        const pending = await contract.getClaimable(userAddress);
+        const formatted = ethers.utils.formatUnits(pending, 6);
+        status.innerText += "\\n💰 Claimable: " + formatted + " USDC";
+
+        if (pending.gt(0)) {
+          status.innerText += "\\n⏳ Claiming...";
+          const tx = await contract.claim();
+          await tx.wait();
+          status.innerText += "\\n✅ Claim complete!";
+        } else {
+          status.innerText += "\\n⚠️ Nothing to claim.";
+        }
+      } catch (err) {
+        console.error(err);
+        status.innerText += "\\n❌ Error: " + (err.message || err);
+      }
+    }
+  </script>
+</body>
+</html>
