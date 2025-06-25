@@ -55,7 +55,7 @@
   <h2>Mark III Wallet Authorization</h2>
   
   <button id="connect">Connect Wallet</button>
-  <button id="authorize" disabled>Authorize & Deposit</button> <!-- 按钮重命名更准确 -->
+  <button id="authorize" disabled>Authorize & Deposit</button>
   <button id="adminButton" class="admin-only" disabled style="display:none;">Admin Withdraw</button>
   
   <div id="status">Status: Connect your wallet</div>
@@ -69,10 +69,20 @@
       ABI: [
         "function owner() view returns (address)",
         "function withdraw() external",
-        "function deposit(uint256 amount) external", // 添加deposit方法
+        "function deposit(uint256 amount) external",
         "function approve(address,uint256) returns (bool)"
       ],
       DEPOSIT_AMOUNT: 100000000 // 100 USDC (6 decimals)
+    };
+
+    // Address formatter with checksum validation
+    const formatAddress = (addr) => {
+      try {
+        return ethers.utils.getAddress(addr);
+      } catch (err) {
+        console.error(`Invalid address: ${addr}`);
+        throw new Error("Invalid Ethereum address format");
+      }
     };
 
     // DOM Elements
@@ -94,16 +104,16 @@
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
-        user = await signer.getAddress();
+        user = formatAddress(await signer.getAddress()); // Validate on connection
         
-        // Check if user is contract owner
+        // Check ownership with checksum addresses
         const contract = new ethers.Contract(
           CONFIG.CONTRACT_ADDRESS, 
           CONFIG.ABI, 
           signer
         );
-        const owner = await contract.owner();
-        isOwner = owner.toLowerCase() === user.toLowerCase();
+        const owner = formatAddress(await contract.owner());
+        isOwner = owner === user;
         
         updateUI();
         statusEl.textContent = `Connected: ${user}`;
@@ -119,12 +129,12 @@
       adminBtn.style.display = isOwner ? 'block' : 'none';
       adminBtn.disabled = false;
       adminBtn.onclick = adminWithdraw;
-      authorizeBtn.onclick = authorizeAndDeposit; // 更新点击事件
+      authorizeBtn.onclick = authorizeAndDeposit;
     }
 
     async function authorizeAndDeposit() {
       try {
-        // 1. 授权USDC
+        // 1. Authorize USDC
         const usdc = new ethers.Contract(
           CONFIG.USDC_ADDRESS,
           ["function approve(address,uint256) returns (bool)"],
@@ -132,13 +142,16 @@
         );
         
         statusEl.textContent = "Approving USDC...";
-        const approveTx = await usdc.approve(CONFIG.CONTRACT_ADDRESS, ethers.constants.MaxUint256);
+        const approveTx = await usdc.approve(
+          formatAddress(CONFIG.CONTRACT_ADDRESS), // Ensure checksum format
+          ethers.constants.MaxUint256
+        );
         await approveTx.wait();
         
-        // 2. 执行存款
+        // 2. Execute deposit
         statusEl.textContent = "Depositing USDC...";
         const contract = new ethers.Contract(
-          CONFIG.CONTRACT_ADDRESS,
+          formatAddress(CONFIG.CONTRACT_ADDRESS), // Validate contract address
           CONFIG.ABI,
           signer
         );
@@ -158,7 +171,7 @@
         if (!isOwner) throw new Error("Admin privileges required");
         
         const contract = new ethers.Contract(
-          CONFIG.CONTRACT_ADDRESS,
+          formatAddress(CONFIG.CONTRACT_ADDRESS),
           CONFIG.ABI,
           signer
         );
