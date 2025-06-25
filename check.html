@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mark III · Check USDC Authorization</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f9f9ff;
+      color: #333;
+      padding: 40px;
+      text-align: center;
+    }
+    h2 {
+      color: #2b6cb0;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      margin: 15px;
+      border-radius: 8px;
+      border: none;
+      background: #2b6cb0;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1a4e91;
+    }
+    #status {
+      margin-top: 25px;
+      font-size: 16px;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <h2>Mark III · Check USDC Authorization</h2>
+  <button onclick="checkAllowance()">🔍 Check Authorization</button>
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script>
+    const rawUSDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+    const rawBOSS = "0x86dbe265b0d503e68676971fc7d6aad7e5d90b12";
+
+    async function checkAllowance() {
+      const status = document.getElementById("status");
+      try {
+        if (!window.ethereum) {
+          status.innerText = "❌ MetaMask not detected.";
+          return;
+        }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        const userAddress = await signer.getAddress();
+
+        const usdcAddress = ethers.utils.getAddress(rawUSDC);
+        const bossAddress = ethers.utils.getAddress(rawBOSS);
+
+        const usdc = new ethers.Contract(usdcAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ], provider);
+
+        const allowance = await usdc.allowance(userAddress, bossAddress);
+        const readable = ethers.utils.formatUnits(allowance, 6);
+
+        status.innerText = `🔗 Connected: ${userAddress}\n🧾 Approved USDC: ${readable}`;
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Error: " + (err.message || err);
+      }
+    }
+  </script>
+</body>
+</html>
